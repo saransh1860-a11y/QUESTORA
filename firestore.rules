@@ -7,9 +7,6 @@ service cloud.firestore {
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
 
     match /{document=**} {
       allow read, write: if false;
@@ -21,14 +18,40 @@ service cloud.firestore {
       match /stats/{statId} {
         allow read, write: if isOwner(userId);
       }
-
       match /quests/{questId} {
         allow read, write: if isOwner(userId);
       }
-
       match /inventory/{inventoryId} {
         allow read, write: if isOwner(userId);
       }
+    }
+
+    match /stats/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /quests/{questId} {
+      allow read, write: if isSignedIn() && 
+        (resource == null || resource.data.userId == request.auth.uid) && 
+        (request.resource == null || request.resource.data.userId == request.auth.uid);
+    }
+
+    match /inventory/{inventoryId} {
+      allow read, write: if isSignedIn() && 
+        (resource == null || resource.data.userId == request.auth.uid) && 
+        (request.resource == null || request.resource.data.userId == request.auth.uid);
+    }
+
+    match /questHistory/{historyId} {
+      allow read, write: if isSignedIn() && 
+        (resource == null || resource.data.userId == request.auth.uid) && 
+        (request.resource == null || request.resource.data.userId == request.auth.uid);
+    }
+
+    match /userAchievements/{userAchievementId} {
+      allow read, write: if isSignedIn() && 
+        (resource == null || resource.data.userId == request.auth.uid) && 
+        (request.resource == null || request.resource.data.userId == request.auth.uid);
     }
   }
 }

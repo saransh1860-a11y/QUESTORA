@@ -4,7 +4,7 @@ import { NameplateBadge } from '../character/NameplateBadge';
 import { Plus, Flame, Sparkles } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { user, activeTab, setIsCreateQuestOpen, setIsAvatarModalOpen } = useGame();
+  const { user, activeTab, setIsCreateQuestOpen } = useGame();
 
   if (!user) return null;
 
@@ -49,16 +49,6 @@ export const Header: React.FC = () => {
           <span>🪙</span>
           <span>{user.gold}</span>
         </div>
-
-        {/* Hero Avatar Button */}
-        <button
-          onClick={() => setIsAvatarModalOpen(true)}
-          className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-violet-500/40 text-violet-300 px-3 py-1.5 rounded-xl text-xs font-mono font-bold shadow-md transition-all active:scale-95 cursor-pointer"
-          title="Select Full-Body RPG Character Avatar"
-        >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span className="hidden md:inline">HERO AVATAR</span>
-        </button>
 
         {/* Create Quest Button */}
         <button

@@ -1,0 +1,380 @@
+{
+  "users": [
+    {
+      "id": "user-demo-1",
+      "email": "hero@questora.app",
+      "passwordHash": "$2b$10$rlJIw08PhXWIO70QtqwsNuP/O9tURNU56ECf91mQttOZU6JWhhfIO",
+      "username": "Aetheris",
+      "characterClass": "Scholar",
+      "level": 3,
+      "totalXp": 820,
+      "gold": 340,
+      "currentStreak": 5,
+      "longestStreak": 7,
+      "lastQuestCompletedDate": "2026-09-12",
+      "equippedTheme": "theme-cyber",
+      "equippedTitle": "Scholar",
+      "equippedFrame": "frame-neon",
+      "equippedEffect": "effect-lightning",
+      "equippedBackground": "bg-dojo",
+      "equippedWearables": {
+        "head": "wearable-headphones-neon",
+        "body": "wearable-hoodie-adventurer",
+        "eyes": "wearable-spectacles-scholar"
+      },
+      "createdAt": "2026-09-12T05:38:38.276Z"
+    },
+    {
+      "id": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "email": "saransh1860@gmail.com",
+      "passwordHash": "$2b$10$Y0gzqxSAEqS39xcMAGE0nOxgg/nZqVv8Yf8LE5EJivG4rLeXzT.HO",
+      "username": "Saransh",
+      "characterClass": "Balanced",
+      "level": 1,
+      "totalXp": 100,
+      "gold": 90,
+      "currentStreak": 1,
+      "longestStreak": 1,
+      "equippedTheme": "theme-cyber",
+      "equippedTitle": "Explorer",
+      "equippedFrame": "frame-neon",
+      "equippedEffect": "effect-lightning",
+      "equippedBackground": "bg-dojo",
+      "equippedWearables": {
+        "body": "wearable-hoodie-adventurer"
+      },
+      "createdAt": "2026-09-12T05:53:30.018Z",
+      "customAvatarUrl": "/src/assets/images/rpg_warrior_avatar_1789192164641.jpg",
+      "gender": "male",
+      "lastQuestCompletedDate": "2026-09-12"
+    }
+  ],
+  "characterStats": {
+    "user-demo-1": {
+      "intellect": 23,
+      "strength": 14,
+      "discipline": 21,
+      "wisdom": 15,
+      "creativity": 9
+    },
+    "ioabwtCJP9g54rjdZXwe7kKGfYQ2": {
+      "intellect": 12,
+      "strength": 12,
+      "discipline": 13,
+      "wisdom": 12,
+      "creativity": 12
+    }
+  },
+  "quests": [
+    {
+      "id": "q-1",
+      "userId": "user-demo-1",
+      "title": "Complete Quantum Physics Chapter",
+      "description": "Read Chapter 4 on wave-particle duality and answer 5 review questions.",
+      "category": "Academics",
+      "difficulty": "Hard",
+      "type": "Daily",
+      "xpReward": 120,
+      "goldReward": 30,
+      "attributeReward": {
+        "attribute": "intellect",
+        "amount": 3
+      },
+      "frequency": "Daily",
+      "completed": true,
+      "createdAt": "2026-09-12T05:38:38.276Z",
+      "completedAt": "2026-09-12T05:46:02.036Z"
+    },
+    {
+      "id": "q-2",
+      "userId": "user-demo-1",
+      "title": "60 Minutes Full-Stack Coding Session",
+      "description": "Build backend API routes and unit test endpoint edge cases.",
+      "category": "Coding",
+      "difficulty": "Medium",
+      "type": "Daily",
+      "xpReward": 80,
+      "goldReward": 20,
+      "attributeReward": {
+        "attribute": "intellect",
+        "amount": 2
+      },
+      "frequency": "Daily",
+      "completed": true,
+      "createdAt": "2026-09-12T05:38:38.276Z",
+      "completedAt": "2026-09-12T05:46:12.577Z"
+    },
+    {
+      "id": "q-3",
+      "userId": "user-demo-1",
+      "title": "Read 20 Pages of Philosophy",
+      "description": "Read Meditations by Marcus Aurelius and take bullet notes.",
+      "category": "Reading",
+      "difficulty": "Easy",
+      "type": "Daily",
+      "xpReward": 50,
+      "goldReward": 10,
+      "attributeReward": {
+        "attribute": "wisdom",
+        "amount": 1
+      },
+      "frequency": "Daily",
+      "completed": true,
+      "createdAt": "2026-09-12T05:38:38.276Z",
+      "completedAt": "2026-09-12T05:46:16.918Z"
+    },
+    {
+      "id": "q-4",
+      "userId": "user-demo-1",
+      "title": "30 Minute High Intensity Cardio",
+      "description": "5km outdoor run or stationary bicycle sprint.",
+      "category": "Fitness",
+      "difficulty": "Hard",
+      "type": "Main",
+      "xpReward": 120,
+      "goldReward": 40,
+      "attributeReward": {
+        "attribute": "strength",
+        "amount": 3
+      },
+      "frequency": "Weekly",
+      "completed": true,
+      "createdAt": "2026-09-12T05:38:38.276Z",
+      "completedAt": "2026-09-12T05:46:22.227Z"
+    },
+    {
+      "id": "q-5",
+      "userId": "user-demo-1",
+      "title": "Cold Shower & Morning Meditation",
+      "description": "Maintain deep breathing cycle for 10 continuous minutes.",
+      "category": "Discipline",
+      "difficulty": "Medium",
+      "type": "Daily",
+      "xpReward": 80,
+      "goldReward": 25,
+      "attributeReward": {
+        "attribute": "discipline",
+        "amount": 2
+      },
+      "frequency": "Daily",
+      "completed": true,
+      "completedAt": "2026-09-12T05:38:38.276Z",
+      "createdAt": "2026-09-12T05:38:38.276Z"
+    },
+    {
+      "id": "q-1789192410018-1",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "title": "Complete Your First Questora Task",
+      "description": "Check off this initial quest to feel the XP & Gold progression flow.",
+      "category": "Discipline",
+      "difficulty": "Easy",
+      "type": "Daily",
+      "xpReward": 50,
+      "goldReward": 20,
+      "attributeReward": {
+        "attribute": "discipline",
+        "amount": 1
+      },
+      "frequency": "Daily",
+      "completed": true,
+      "createdAt": "2026-09-12T05:53:30.018Z",
+      "completedAt": "2026-09-12T06:28:56.120Z"
+    },
+    {
+      "id": "q-1789192410018-2",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "title": "Read 15 Minutes of a Book or Article",
+      "description": "Expand your mind and build your Intellect attribute.",
+      "category": "Reading",
+      "difficulty": "Medium",
+      "type": "Daily",
+      "xpReward": 80,
+      "goldReward": 25,
+      "attributeReward": {
+        "attribute": "wisdom",
+        "amount": 2
+      },
+      "frequency": "Daily",
+      "completed": false,
+      "createdAt": "2026-09-12T05:53:30.018Z"
+    }
+  ],
+  "questHistory": [
+    {
+      "id": "qh-1789194536120",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "questId": "q-1789192410018-1",
+      "questTitle": "Complete Your First Questora Task",
+      "category": "Discipline",
+      "xpEarned": 50,
+      "goldEarned": 20,
+      "attributeReward": {
+        "attribute": "discipline",
+        "amount": 1
+      },
+      "completedAt": "2026-09-12T06:28:56.120Z"
+    },
+    {
+      "id": "qh-1789191982227",
+      "userId": "user-demo-1",
+      "questId": "q-4",
+      "questTitle": "30 Minute High Intensity Cardio",
+      "category": "Fitness",
+      "xpEarned": 120,
+      "goldEarned": 40,
+      "attributeReward": {
+        "attribute": "strength",
+        "amount": 3
+      },
+      "completedAt": "2026-09-12T05:46:22.227Z"
+    },
+    {
+      "id": "qh-1789191976919",
+      "userId": "user-demo-1",
+      "questId": "q-3",
+      "questTitle": "Read 20 Pages of Philosophy",
+      "category": "Reading",
+      "xpEarned": 50,
+      "goldEarned": 10,
+      "attributeReward": {
+        "attribute": "wisdom",
+        "amount": 1
+      },
+      "completedAt": "2026-09-12T05:46:16.919Z"
+    },
+    {
+      "id": "qh-1789191972577",
+      "userId": "user-demo-1",
+      "questId": "q-2",
+      "questTitle": "60 Minutes Full-Stack Coding Session",
+      "category": "Coding",
+      "xpEarned": 80,
+      "goldEarned": 20,
+      "attributeReward": {
+        "attribute": "intellect",
+        "amount": 2
+      },
+      "completedAt": "2026-09-12T05:46:12.577Z"
+    },
+    {
+      "id": "qh-1789191962036",
+      "userId": "user-demo-1",
+      "questId": "q-1",
+      "questTitle": "Complete Quantum Physics Chapter",
+      "category": "Academics",
+      "xpEarned": 120,
+      "goldEarned": 30,
+      "attributeReward": {
+        "attribute": "intellect",
+        "amount": 3
+      },
+      "completedAt": "2026-09-12T05:46:02.036Z"
+    },
+    {
+      "id": "qh-1",
+      "userId": "user-demo-1",
+      "questId": "q-5",
+      "questTitle": "Cold Shower & Morning Meditation",
+      "category": "Discipline",
+      "xpEarned": 80,
+      "goldEarned": 25,
+      "attributeReward": {
+        "attribute": "discipline",
+        "amount": 2
+      },
+      "completedAt": "2026-09-12T05:38:38.277Z"
+    }
+  ],
+  "userAchievements": [
+    {
+      "userId": "user-demo-1",
+      "achievementId": "ach-first-quest",
+      "unlockedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "achievementId": "ach-first-quest",
+      "unlockedAt": "2026-09-12T06:28:56.121Z"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-1",
+      "userId": "user-demo-1",
+      "itemId": "wearable-hoodie-adventurer",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-2",
+      "userId": "user-demo-1",
+      "itemId": "wearable-headphones-neon",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-3",
+      "userId": "user-demo-1",
+      "itemId": "wearable-spectacles-scholar",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-4",
+      "userId": "user-demo-1",
+      "itemId": "frame-neon",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-5",
+      "userId": "user-demo-1",
+      "itemId": "effect-lightning",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-6",
+      "userId": "user-demo-1",
+      "itemId": "theme-cyber",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-7",
+      "userId": "user-demo-1",
+      "itemId": "title-explorer",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-8",
+      "userId": "user-demo-1",
+      "itemId": "title-scholar",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-9",
+      "userId": "user-demo-1",
+      "itemId": "bg-dojo",
+      "purchasedAt": "2026-09-12T05:38:38.277Z"
+    },
+    {
+      "id": "inv-1789192410018-1",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "itemId": "wearable-hoodie-adventurer",
+      "purchasedAt": "2026-09-12T05:53:30.018Z"
+    },
+    {
+      "id": "inv-1789192410018-2",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "itemId": "frame-neon",
+      "purchasedAt": "2026-09-12T05:53:30.018Z"
+    },
+    {
+      "id": "inv-1789192410018-3",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "itemId": "theme-cyber",
+      "purchasedAt": "2026-09-12T05:53:30.018Z"
+    },
+    {
+      "id": "inv-1789192410018-4",
+      "userId": "ioabwtCJP9g54rjdZXwe7kKGfYQ2",
+      "itemId": "title-explorer",
+      "purchasedAt": "2026-09-12T05:53:30.018Z"
+    }
+  ]
+}

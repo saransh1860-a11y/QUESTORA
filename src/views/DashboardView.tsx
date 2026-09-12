@@ -7,7 +7,7 @@ import { Plus, Flame, Zap, Award, BookOpen, Activity, Target, Shield, Sparkles, 
 import { QuestType } from '../types';
 
 export const DashboardView: React.FC = () => {
-  const { user, stats, quests, setIsCreateQuestOpen, setActiveTab, setIsAvatarModalOpen } = useGame();
+  const { user, stats, quests, setIsCreateQuestOpen, setActiveTab } = useGame();
   const [filterType, setFilterType] = useState<QuestType | 'All'>('All');
 
   if (!user || !stats) return null;
@@ -33,10 +33,11 @@ export const DashboardView: React.FC = () => {
             <div className="flex flex-col items-center gap-1.5">
               <AvatarCanvas user={user} size="md" />
               <button
-                onClick={() => setIsAvatarModalOpen(true)}
+                onClick={() => setActiveTab('rewards')}
                 className="text-[10px] font-mono font-bold text-violet-300 hover:text-white bg-slate-900/80 hover:bg-violet-900/60 border border-violet-500/40 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 shadow-md cursor-pointer"
+                title="Unlock more hero characters in the Rewards Shop"
               >
-                <span>✨ Hero Avatar</span>
+                <span>🛒 Character Shop</span>
               </button>
             </div>
             <div>

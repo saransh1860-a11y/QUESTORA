@@ -17,17 +17,9 @@ import { ProfileView } from './views/ProfileView';
 import { SettingsView } from './views/SettingsView';
 import { CreateQuestModal } from './components/quests/CreateQuestModal';
 import { QuestCompletionModal } from './components/quests/QuestCompletionModal';
-import { PhotoAvatarModal } from './components/character/PhotoAvatarModal';
 
 const MainAppContent: React.FC = () => {
-  const { user, isAuthenticated, isLoading, activeTab, isAvatarModalOpen, setIsAvatarModalOpen } = useGame();
-
-  // Auto prompt Photo -> Avatar creation on sign in if user has no custom avatar yet
-  React.useEffect(() => {
-    if (user && !user.customAvatarUrl) {
-      setIsAvatarModalOpen(true);
-    }
-  }, [user?.id]);
+  const { user, isAuthenticated, isLoading, activeTab } = useGame();
 
   if (isLoading) {
     return (
@@ -118,7 +110,6 @@ const MainAppContent: React.FC = () => {
       {/* Modals */}
       <CreateQuestModal />
       <QuestCompletionModal />
-      <PhotoAvatarModal isOpen={isAvatarModalOpen} onClose={() => setIsAvatarModalOpen(false)} />
     </div>
   );
 };

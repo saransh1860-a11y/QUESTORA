@@ -2,10 +2,10 @@ import React from 'react';
 import { useGame } from '../context/GameContext';
 import { AvatarCanvas } from '../components/character/AvatarCanvas';
 import { calculateLevelData } from '../utils/level';
-import { BookOpen, Activity, Target, Shield, Sparkles, Award, Zap, Package, Camera } from 'lucide-react';
+import { BookOpen, Activity, Target, Shield, Sparkles, Award, Zap, Package, ShoppingBag } from 'lucide-react';
 
 export const CharacterView: React.FC = () => {
-  const { user, stats, achievements, setActiveTab, setIsAvatarModalOpen } = useGame();
+  const { user, stats, achievements, setActiveTab } = useGame();
 
   if (!user || !stats) return null;
 
@@ -26,11 +26,11 @@ export const CharacterView: React.FC = () => {
             <AvatarCanvas user={user} size="xl" showDetails={true} />
             
             <button
-              onClick={() => setIsAvatarModalOpen(true)}
+              onClick={() => setActiveTab('rewards')}
               className="mt-4 px-4 py-2 rounded-xl bg-violet-950/80 hover:bg-violet-900 border border-violet-500/50 text-violet-200 text-xs font-mono font-bold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>CHOOSE FULL-BODY HERO AVATAR</span>
+              <ShoppingBag className="w-4 h-4 text-amber-400" />
+              <span>UNLOCK HERO CHARACTERS (REWARDS)</span>
             </button>
           </div>
 
