@@ -6,6 +6,7 @@ export interface AuthenticatedRequest extends Request {
     uid: string;
     email?: string;
     name?: string;
+    token: string;
   };
 }
 
@@ -36,11 +37,12 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
       return;
     }
 
-    // Attach server-verified UID
+    // Attach server-verified UID and token
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
-      name: decodedToken.name
+      name: decodedToken.name,
+      token
     };
 
     next();

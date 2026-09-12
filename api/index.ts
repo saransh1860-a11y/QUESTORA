@@ -76,7 +76,7 @@ registerRoute('post', '/api/user/init', [
       const data = await progressionService.initOrGetUser(uid, {
         email: req.user?.email,
         name: req.user?.name
-      });
+      }, req.user?.token);
       res.json(data);
     } catch (err: any) {
       console.error('user/init error:', err);
@@ -90,7 +90,7 @@ registerRoute('get', '/api/user/me', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const data = await progressionService.getUser(uid);
+      const data = await progressionService.getUser(uid, req.user?.token);
       res.json(data);
     } catch (err: any) {
       console.error('user/me error:', err);
@@ -104,7 +104,7 @@ registerRoute('post', '/api/user/onboarding', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const data = await progressionService.onboardingSetup(uid, req.body || {});
+      const data = await progressionService.onboardingSetup(uid, req.body || {}, req.user?.token);
       res.json(data);
     } catch (err: any) {
       console.error('user/onboarding error:', err);
@@ -118,7 +118,7 @@ registerRoute('post', '/api/user/avatar', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const data = await progressionService.updateAvatar(uid, req.body || {});
+      const data = await progressionService.updateAvatar(uid, req.body || {}, req.user?.token);
       res.json(data);
     } catch (err: any) {
       console.error('user/avatar error:', err);
@@ -137,7 +137,7 @@ registerRoute('post', '/api/user/gender', [
         res.status(400).json({ error: 'Gender must be male or female' });
         return;
       }
-      const data = await progressionService.updateGender(uid, gender);
+      const data = await progressionService.updateGender(uid, gender, req.user?.token);
       res.json(data);
     } catch (err: any) {
       console.error('user/gender error:', err);
@@ -152,7 +152,7 @@ registerRoute('get', '/api/quests', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const quests = await progressionService.getQuests(uid);
+      const quests = await progressionService.getQuests(uid, req.user?.token);
       res.json({ quests });
     } catch (err: any) {
       console.error('get quests error:', err);
@@ -166,7 +166,7 @@ registerRoute('post', '/api/quests', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const quest = await progressionService.createQuest(uid, req.body || {});
+      const quest = await progressionService.createQuest(uid, req.body || {}, req.user?.token);
       res.status(201).json({ quest });
     } catch (err: any) {
       console.error('create quest error:', err);
@@ -181,7 +181,7 @@ registerRoute('delete', '/api/quests/:id', [
     try {
       const uid = req.user!.uid;
       const questId = req.params.id;
-      const success = await progressionService.deleteQuest(uid, questId);
+      const success = await progressionService.deleteQuest(uid, questId, req.user?.token);
       res.json({ success });
     } catch (err: any) {
       console.error('delete quest error:', err);
@@ -206,7 +206,7 @@ registerRoute('post', '/api/quests/complete', [
       // Progression values (XP, Gold, Level, Attributes, Streak, Achievements)
       // are calculated and validated strictly by the server. Any client-sent
       // progression overrides are completely discarded.
-      const result = await progressionService.completeQuest(uid, questId);
+      const result = await progressionService.completeQuest(uid, questId, req.user?.token);
       res.json(result);
     } catch (err: any) {
       console.error('complete quest error:', err.message || err);
@@ -244,7 +244,7 @@ registerRoute('post', '/api/shop/buy', [
       }
 
       // Shop prices, level requirements, ownership, and gold deduction are verified server-side
-      const result = await progressionService.buyShopItem(uid, itemId);
+      const result = await progressionService.buyShopItem(uid, itemId, req.user?.token);
       res.json(result);
     } catch (err: any) {
       console.error('shop purchase error:', err.message || err);
@@ -259,7 +259,7 @@ registerRoute('get', '/api/inventory', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const result = await progressionService.getInventory(uid);
+      const result = await progressionService.getInventory(uid, req.user?.token);
       res.json(result);
     } catch (err: any) {
       console.error('get inventory error:', err);
@@ -281,7 +281,7 @@ registerRoute('post', '/api/inventory/equip', [
       }
 
       // Server enforces that the user genuinely owns the item before equipping
-      const result = await progressionService.equipItem(uid, itemId, Boolean(unequip));
+      const result = await progressionService.equipItem(uid, itemId, Boolean(unequip), req.user?.token);
       res.json(result);
     } catch (err: any) {
       console.error('equip item error:', err.message || err);
@@ -297,7 +297,7 @@ registerRoute('get', '/api/achievements', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const achievements = await progressionService.getAchievements(uid);
+      const achievements = await progressionService.getAchievements(uid, req.user?.token);
       res.json({ achievements });
     } catch (err: any) {
       console.error('get achievements error:', err);
@@ -311,7 +311,7 @@ registerRoute('get', '/api/progress', [
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const uid = req.user!.uid;
-      const progress = await progressionService.getProgress(uid);
+      const progress = await progressionService.getProgress(uid, req.user?.token);
       res.json(progress);
     } catch (err: any) {
       console.error('get progress error:', err);

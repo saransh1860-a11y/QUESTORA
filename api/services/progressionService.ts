@@ -1,4 +1,4 @@
-import { adminDb } from '../lib/firebaseAdmin';
+import { serverDb } from '../lib/db';
 import {
   UserProfile,
   CharacterStats,
@@ -70,20 +70,17 @@ export function evaluateAchievements(params: {
 }
 
 export const progressionService = {
-  async getUser(uid: string): Promise<{ user: UserProfile; stats: CharacterStats }> {
-    const userDocRef = adminDb.collection('users').doc(uid);
-    const statsDocRef = adminDb.collection('stats').doc(uid);
-
+  async getUser(uid: string, token?: string): Promise<{ user: UserProfile; stats: CharacterStats }> {
     const [userSnap, statsSnap] = await Promise.all([
-      userDocRef.get(),
-      statsDocRef.get()
+      serverDb.getDoc<UserProfile>('users', uid, token),
+      serverDb.getDoc<CharacterStats>('stats', uid, token)
     ]);
 
     if (!userSnap.exists) {
       throw new Error('User profile not found');
     }
 
-    const user = userSnap.data() as UserProfile;
+    const user = userSnap.data()!;
     const stats = (statsSnap.exists ? statsSnap.data() : {
       intellect: 0,
       strength: 0,
@@ -95,13 +92,10 @@ export const progressionService = {
     return { user, stats };
   },
 
-  async initOrGetUser(uid: string, tokenData?: { email?: string; name?: string }): Promise<{ user: UserProfile; stats: CharacterStats }> {
-    const userDocRef = adminDb.collection('users').doc(uid);
-    const statsDocRef = adminDb.collection('stats').doc(uid);
-
+  async initOrGetUser(uid: string, tokenData?: { email?: string; name?: string }, token?: string): Promise<{ user: UserProfile; stats: CharacterStats }> {
     const [userSnap, statsSnap] = await Promise.all([
-      userDocRef.get(),
-      statsDocRef.get()
+      serverDb.getDoc<UserProfile>('users', uid, token),
+      serverDb.getDoc<CharacterStats>('stats', uid, token)
     ]);
 
     const now = new Date().toISOString();
@@ -148,15 +142,15 @@ export const progressionService = {
       };
 
       await Promise.all([
-        userDocRef.set(initialProfile),
-        statsDocRef.set(initialStats),
-        adminDb.collection('inventory').doc(`${uid}_starter`).set(starterInvItem)
+        serverDb.setDoc('users', uid, initialProfile, token),
+        serverDb.setDoc('stats', uid, initialStats, token),
+        serverDb.setDoc('inventory', `${uid}_starter`, starterInvItem, token)
       ]);
 
       return { user: initialProfile, stats: initialStats };
     }
 
-    const existingUser = userSnap.data() as UserProfile;
+    const existingUser = userSnap.data()!;
     let existingStats = (statsSnap.exists ? statsSnap.data() : {
       intellect: 0,
       strength: 0,
@@ -166,41 +160,40 @@ export const progressionService = {
     }) as CharacterStats;
 
     if (!statsSnap.exists) {
-      await statsDocRef.set(existingStats);
+      await serverDb.setDoc('stats', uid, existingStats, token);
     }
 
     // Ensure starter inventory item exists
-    const starterInvRef = adminDb.collection('inventory').doc(`${uid}_starter`);
-    const starterInvSnap = await starterInvRef.get();
+    const starterInvSnap = await serverDb.getDoc('inventory', `${uid}_starter`, token);
     if (!starterInvSnap.exists) {
-      await starterInvRef.set({
+      await serverDb.setDoc('inventory', `${uid}_starter`, {
         id: `${uid}_starter`,
         userId: uid,
         itemId: STARTER_CHARACTER_ID,
         purchasedAt: now
-      });
+      }, token);
     }
 
     // Validate streak status using historical dates
     if (existingUser.lastQuestCompletedDate) {
-      const historySnap = await adminDb.collection('questHistory')
-        .where('userId', '==', uid)
-        .get();
+      const historyDocs = await serverDb.queryDocs('questHistory', [
+        { field: 'userId', op: '==', value: uid }
+      ], token);
 
       const dates: string[] = [];
-      historySnap.forEach(d => {
+      historyDocs.forEach(d => {
         const h = d.data();
-        if (h.completedAt) dates.push(h.completedAt);
+        if (h && (h as any).completedAt) dates.push((h as any).completedAt);
       });
 
       if (dates.length > 0) {
         const computedStreak = computeDateBasedStreak(dates, new Date());
         if (computedStreak.currentStreak !== existingUser.currentStreak) {
-          await userDocRef.update({
+          await serverDb.updateDoc('users', uid, {
             currentStreak: computedStreak.currentStreak,
             longestStreak: Math.max(existingUser.longestStreak || 0, computedStreak.longestStreak),
             updatedAt: now
-          });
+          }, token);
           existingUser.currentStreak = computedStreak.currentStreak;
           existingUser.longestStreak = Math.max(existingUser.longestStreak || 0, computedStreak.longestStreak);
         }
@@ -210,8 +203,7 @@ export const progressionService = {
     return { user: existingUser, stats: existingStats };
   },
 
-  async onboardingSetup(uid: string, payload: { characterClass?: string; goals?: string[] }): Promise<{ user: UserProfile; stats: CharacterStats }> {
-    const userDocRef = adminDb.collection('users').doc(uid);
+  async onboardingSetup(uid: string, payload: { characterClass?: string; goals?: string[] }, token?: string): Promise<{ user: UserProfile; stats: CharacterStats }> {
     const updates: Record<string, any> = {
       onboardingCompleted: true,
       updatedAt: new Date().toISOString()
@@ -220,12 +212,11 @@ export const progressionService = {
     if (payload.characterClass) updates.characterClass = payload.characterClass;
     if (payload.goals && Array.isArray(payload.goals)) updates.goals = payload.goals;
 
-    await userDocRef.update(updates);
-    return await this.getUser(uid);
+    await serverDb.updateDoc('users', uid, updates, token);
+    return await this.getUser(uid, token);
   },
 
-  async updateAvatar(uid: string, payload: { customAvatarUrl?: string; userPhotoUrl?: string }): Promise<{ user: UserProfile; stats: CharacterStats }> {
-    const userDocRef = adminDb.collection('users').doc(uid);
+  async updateAvatar(uid: string, payload: { customAvatarUrl?: string; userPhotoUrl?: string }, token?: string): Promise<{ user: UserProfile; stats: CharacterStats }> {
     const updates: Record<string, any> = {
       updatedAt: new Date().toISOString()
     };
@@ -233,15 +224,14 @@ export const progressionService = {
     if (payload.customAvatarUrl !== undefined) updates.customAvatarUrl = payload.customAvatarUrl;
     if (payload.userPhotoUrl !== undefined) updates.userPhotoUrl = payload.userPhotoUrl;
 
-    await userDocRef.update(updates);
-    return await this.getUser(uid);
+    await serverDb.updateDoc('users', uid, updates, token);
+    return await this.getUser(uid, token);
   },
 
-  async updateGender(uid: string, gender: 'male' | 'female'): Promise<{ user: UserProfile; stats: CharacterStats }> {
-    const userDocRef = adminDb.collection('users').doc(uid);
-    const userSnap = await userDocRef.get();
+  async updateGender(uid: string, gender: 'male' | 'female', token?: string): Promise<{ user: UserProfile; stats: CharacterStats }> {
+    const userSnap = await serverDb.getDoc<UserProfile>('users', uid, token);
     if (!userSnap.exists) throw new Error('User not found');
-    const user = userSnap.data() as UserProfile;
+    const user = userSnap.data()!;
 
     const updates: Record<string, any> = {
       gender,
@@ -258,20 +248,16 @@ export const progressionService = {
         : STARTER_AVATAR_URL;
     }
 
-    await userDocRef.update(updates);
-    return await this.getUser(uid);
+    await serverDb.updateDoc('users', uid, updates, token);
+    return await this.getUser(uid, token);
   },
 
-  async getQuests(uid: string): Promise<Quest[]> {
-    const questsSnap = await adminDb.collection('quests')
-      .where('userId', '==', uid)
-      .get();
+  async getQuests(uid: string, token?: string): Promise<Quest[]> {
+    const questDocs = await serverDb.queryDocs<Quest>('quests', [
+      { field: 'userId', op: '==', value: uid }
+    ], token);
 
-    const quests: Quest[] = [];
-    questsSnap.forEach(d => {
-      quests.push(d.data() as Quest);
-    });
-
+    const quests: Quest[] = questDocs.map(d => d.data());
     quests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return quests;
   },
@@ -284,7 +270,7 @@ export const progressionService = {
     type: QuestType;
     frequency: QuestFrequency;
     attributeTarget?: AttributeType;
-  }): Promise<Quest> {
+  }, token?: string): Promise<Quest> {
     if (!payload.title || !payload.title.trim()) {
       throw new Error('Quest title is required');
     }
@@ -316,32 +302,31 @@ export const progressionService = {
       createdAt: now
     };
 
-    await adminDb.collection('quests').doc(questId).set(newQuest);
+    await serverDb.setDoc('quests', questId, newQuest, token);
     return newQuest;
   },
 
-  async deleteQuest(uid: string, questId: string): Promise<boolean> {
-    const questRef = adminDb.collection('quests').doc(questId);
-    const questSnap = await questRef.get();
+  async deleteQuest(uid: string, questId: string, token?: string): Promise<boolean> {
+    const questSnap = await serverDb.getDoc<Quest>('quests', questId, token);
 
     if (!questSnap.exists) {
       throw new Error('Quest not found');
     }
 
-    const quest = questSnap.data() as Quest;
+    const quest = questSnap.data()!;
     if (quest.userId !== uid) {
       throw new Error('Unauthorized: Quest does not belong to the user');
     }
 
-    await questRef.delete();
+    await serverDb.deleteDoc('quests', questId, token);
     return true;
   },
 
   /**
    * Secure, Server-Authoritative Quest Completion
-   * Atomically updates Quest, User Profile, Character Stats, History, and Achievements in a single transaction.
+   * Atomically updates Quest, User Profile, Character Stats, History, and Achievements.
    */
-  async completeQuest(uid: string, questId: string): Promise<{
+  async completeQuest(uid: string, questId: string, token?: string): Promise<{
     quest: Quest;
     user: UserProfile;
     stats: CharacterStats;
@@ -350,190 +335,175 @@ export const progressionService = {
     levelData: { level: number; currentLevelXp: number; nextLevelXp: number; progressPct: number };
     unlockedAchievements: Achievement[];
   }> {
-    const questRef = adminDb.collection('quests').doc(questId);
-    const userRef = adminDb.collection('users').doc(uid);
-    const statsRef = adminDb.collection('stats').doc(uid);
+    // 1. Fetch current Quest
+    const questSnap = await serverDb.getDoc<Quest>('quests', questId, token);
+    if (!questSnap.exists) {
+      throw new Error('Quest not found');
+    }
+    const quest = questSnap.data()!;
 
-    // Pre-fetch historical completions for accurate calendar streak calculation
-    const [historySnap, userAchievementsSnap, inventorySnap] = await Promise.all([
-      adminDb.collection('questHistory').where('userId', '==', uid).get(),
-      adminDb.collection('userAchievements').where('userId', '==', uid).get(),
-      adminDb.collection('inventory').where('userId', '==', uid).get()
+    if (quest.userId !== uid) {
+      throw new Error('Unauthorized: Quest does not belong to the logged-in user');
+    }
+
+    if (quest.completed) {
+      throw new Error('Quest has already been completed');
+    }
+
+    // 2. Fetch User & Stats & History
+    const [userSnap, statsSnap, historyDocs, achDocs, invDocs] = await Promise.all([
+      serverDb.getDoc<UserProfile>('users', uid, token),
+      serverDb.getDoc<CharacterStats>('stats', uid, token),
+      serverDb.queryDocs('questHistory', [{ field: 'userId', op: '==', value: uid }], token),
+      serverDb.queryDocs('userAchievements', [{ field: 'userId', op: '==', value: uid }], token),
+      serverDb.queryDocs('inventory', [{ field: 'userId', op: '==', value: uid }], token)
     ]);
 
+    if (!userSnap.exists) {
+      throw new Error('User not found');
+    }
+    const user = userSnap.data()!;
+
+    const currentStats: CharacterStats = (statsSnap.exists ? statsSnap.data() : {
+      intellect: 0,
+      strength: 0,
+      discipline: 0,
+      wisdom: 0,
+      creativity: 0
+    }) as CharacterStats;
+
     const existingCompletionDates: string[] = [];
-    historySnap.forEach(d => {
+    historyDocs.forEach(d => {
       const h = d.data();
-      if (h.completedAt) existingCompletionDates.push(h.completedAt);
+      if (h && (h as any).completedAt) existingCompletionDates.push((h as any).completedAt);
     });
 
     const unlockedAchievementIds = new Set<string>();
-    userAchievementsSnap.forEach(d => {
+    achDocs.forEach(d => {
       const a = d.data();
-      if (a.achievementId) unlockedAchievementIds.add(a.achievementId);
+      if (a && (a as any).achievementId) unlockedAchievementIds.add((a as any).achievementId);
     });
 
-    const inventoryCount = inventorySnap.size;
+    const inventoryCount = invDocs.length;
 
-    const result = await adminDb.runTransaction(async (transaction) => {
-      // Step 1: Read all documents first (Firestore transaction rule)
-      const [questSnap, userSnap, statsSnap] = await Promise.all([
-        transaction.get(questRef),
-        transaction.get(userRef),
-        transaction.get(statsRef)
-      ]);
+    // 3. Compute Authoritative Rewards (Server-Controlled)
+    const rewardConfig = REWARDS[quest.difficulty] || REWARDS.Medium;
+    const xpEarned = rewardConfig.xp;
+    const goldEarned = rewardConfig.gold;
+    const statIncrease = rewardConfig.stat;
 
-      if (!questSnap.exists) {
-        throw new Error('Quest not found');
-      }
-      const quest = questSnap.data() as Quest;
+    const attributeKey = (quest.attributeReward?.attribute ||
+      ATTRIBUTE_BY_CATEGORY[quest.category] ||
+      'intellect') as AttributeType;
 
-      if (quest.userId !== uid) {
-        throw new Error('Unauthorized: Quest does not belong to the logged-in user');
-      }
+    const oldLevel = user.level || 1;
+    const newTotalXp = (user.totalXp || 0) + xpEarned;
+    const levelData = calculateLevelData(newTotalXp);
+    const didLevelUp = levelData.level > oldLevel;
+    const newGold = (user.gold || 0) + goldEarned;
 
-      if (quest.completed) {
-        throw new Error('Quest has already been completed');
-      }
+    // Calendar Date-Based Streak Calculation
+    const now = new Date().toISOString();
+    const allDates = [...existingCompletionDates, now];
+    const streakCalc = computeDateBasedStreak(allDates, new Date());
+    const newStreak = streakCalc.currentStreak;
+    const longestStreak = Math.max(user.longestStreak || 0, streakCalc.longestStreak);
 
-      if (!userSnap.exists) {
-        throw new Error('User not found');
-      }
-      const user = userSnap.data() as UserProfile;
+    // Attribute Increase
+    const updatedStats: CharacterStats = {
+      ...currentStats,
+      [attributeKey]: (currentStats[attributeKey] || 0) + statIncrease
+    };
 
-      const currentStats: CharacterStats = (statsSnap.exists ? statsSnap.data() : {
-        intellect: 0,
-        strength: 0,
-        discipline: 0,
-        wisdom: 0,
-        creativity: 0
-      }) as CharacterStats;
+    // Milestone / Achievement Detection
+    const totalQuestsCompleted = existingCompletionDates.length + 1;
+    const newlyUnlockedAchievements = evaluateAchievements({
+      totalQuestsCompleted,
+      newStreak,
+      longestStreak,
+      level: levelData.level,
+      stats: updatedStats,
+      inventoryCount,
+      unlockedAchievementIds
+    });
 
-      // Step 2: Compute Authoritative Rewards (Server-Controlled)
-      const rewardConfig = REWARDS[quest.difficulty] || REWARDS.Medium;
-      const xpEarned = rewardConfig.xp;
-      const goldEarned = rewardConfig.gold;
-      const statIncrease = rewardConfig.stat;
+    // 4. Perform Authoritative Writes
+    const updatedQuest: Quest = {
+      ...quest,
+      completed: true,
+      completedAt: now
+    };
 
-      const attributeKey = (quest.attributeReward?.attribute ||
-        ATTRIBUTE_BY_CATEGORY[quest.category] ||
-        'intellect') as AttributeType;
+    const updatedUser: UserProfile = {
+      ...user,
+      totalXp: newTotalXp,
+      level: levelData.level,
+      gold: newGold,
+      currentStreak: newStreak,
+      longestStreak: longestStreak,
+      lastQuestCompletedDate: now
+    };
 
-      const oldLevel = user.level || 1;
-      const newTotalXp = (user.totalXp || 0) + xpEarned;
-      const levelData = calculateLevelData(newTotalXp);
-      const didLevelUp = levelData.level > oldLevel;
-      const newGold = (user.gold || 0) + goldEarned;
+    const historyId = `hist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const historyEntry = {
+      id: historyId,
+      userId: uid,
+      questId: questId,
+      questTitle: quest.title,
+      xpEarned,
+      goldEarned,
+      completedAt: now
+    };
 
-      // Calendar Date-Based Streak Calculation
-      const now = new Date().toISOString();
-      const allDates = [...existingCompletionDates, now];
-      const streakCalc = computeDateBasedStreak(allDates, new Date());
-      const newStreak = streakCalc.currentStreak;
-      const longestStreak = Math.max(user.longestStreak || 0, streakCalc.longestStreak);
-
-      // Attribute Increase
-      const updatedStats: CharacterStats = {
-        ...currentStats,
-        [attributeKey]: (currentStats[attributeKey] || 0) + statIncrease
-      };
-
-      // Milestone / Achievement Detection
-      const totalQuestsCompleted = existingCompletionDates.length + 1;
-      const newlyUnlockedAchievements = evaluateAchievements({
-        totalQuestsCompleted,
-        newStreak,
-        longestStreak,
-        level: levelData.level,
-        stats: updatedStats,
-        inventoryCount,
-        unlockedAchievementIds
-      });
-
-      // Step 3: Transaction Writes (Atomicity Guaranteed)
-      // 1. Update Quest
-      const updatedQuest: Quest = {
-        ...quest,
-        completed: true,
-        completedAt: now
-      };
-      transaction.update(questRef, {
-        completed: true,
-        completedAt: now
-      });
-
-      // 2. Update User Profile
-      const updatedUser: UserProfile = {
-        ...user,
+    const writePromises: Promise<any>[] = [
+      serverDb.updateDoc('quests', questId, { completed: true, completedAt: now }, token),
+      serverDb.updateDoc('users', uid, {
         totalXp: newTotalXp,
         level: levelData.level,
         gold: newGold,
         currentStreak: newStreak,
         longestStreak: longestStreak,
         lastQuestCompletedDate: now
-      };
-      transaction.update(userRef, {
-        totalXp: newTotalXp,
-        level: levelData.level,
-        gold: newGold,
-        currentStreak: newStreak,
-        longestStreak: longestStreak,
-        lastQuestCompletedDate: now
-      });
+      }, token),
+      serverDb.setDoc('stats', uid, updatedStats, token),
+      serverDb.setDoc('questHistory', historyId, historyEntry, token)
+    ];
 
-      // 3. Update Character Stats
-      transaction.set(statsRef, updatedStats);
-
-      // 4. Create Immutable Quest History Entry
-      const historyId = `hist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      const historyDocRef = adminDb.collection('questHistory').doc(historyId);
-      transaction.set(historyDocRef, {
-        id: historyId,
-        userId: uid,
-        questId: questId,
-        questTitle: quest.title,
-        xpEarned,
-        goldEarned,
-        completedAt: now
-      });
-
-      // 5. Create newly unlocked Achievements
-      for (const ach of newlyUnlockedAchievements) {
-        const achDocId = `${uid}_${ach.id}`;
-        const achDocRef = adminDb.collection('userAchievements').doc(achDocId);
-        transaction.set(achDocRef, {
+    for (const ach of newlyUnlockedAchievements) {
+      const achDocId = `${uid}_${ach.id}`;
+      writePromises.push(
+        serverDb.setDoc('userAchievements', achDocId, {
           id: achDocId,
           userId: uid,
           achievementId: ach.id,
           unlockedAt: now
-        });
-      }
+        }, token)
+      );
+    }
 
-      return {
-        quest: updatedQuest,
-        user: updatedUser,
-        stats: updatedStats,
-        didLevelUp,
-        newLevel: levelData.level,
-        levelData,
-        unlockedAchievements: newlyUnlockedAchievements
-      };
-    });
+    await Promise.all(writePromises);
 
-    return result;
+    return {
+      quest: updatedQuest,
+      user: updatedUser,
+      stats: updatedStats,
+      didLevelUp,
+      newLevel: levelData.level,
+      levelData,
+      unlockedAchievements: newlyUnlockedAchievements
+    };
   },
 
   getShopItems(): ShopItem[] {
     return SHOP_ITEMS;
   },
 
-  async getInventory(uid: string): Promise<{ inventory: InventoryItem[]; items: ShopItem[] }> {
-    const snap = await adminDb.collection('inventory')
-      .where('userId', '==', uid)
-      .get();
+  async getInventory(uid: string, token?: string): Promise<{ inventory: InventoryItem[]; items: ShopItem[] }> {
+    const invDocs = await serverDb.queryDocs<InventoryItem>('inventory', [
+      { field: 'userId', op: '==', value: uid }
+    ], token);
 
-    const inventory: InventoryItem[] = [];
-    snap.forEach(d => inventory.push(d.data() as InventoryItem));
+    let inventory: InventoryItem[] = invDocs.map(d => d.data());
 
     if (inventory.length === 0) {
       const now = new Date().toISOString();
@@ -543,7 +513,7 @@ export const progressionService = {
         itemId: STARTER_CHARACTER_ID,
         purchasedAt: now
       };
-      await adminDb.collection('inventory').doc(`${uid}_starter`).set(starterInvItem);
+      await serverDb.setDoc('inventory', `${uid}_starter`, starterInvItem, token);
       inventory.push(starterInvItem);
     }
 
@@ -555,9 +525,9 @@ export const progressionService = {
 
   /**
    * Secure, Server-Authoritative Shop Purchase
-   * Validates level gate, Gold amount, catalog pricing, and prior ownership inside a Firestore transaction.
+   * Validates level gate, Gold amount, catalog pricing, and prior ownership.
    */
-  async buyShopItem(uid: string, itemId: string): Promise<{
+  async buyShopItem(uid: string, itemId: string, token?: string): Promise<{
     user: UserProfile;
     item: ShopItem;
     inventory: InventoryItem[];
@@ -567,68 +537,62 @@ export const progressionService = {
       throw new Error('Item not found in official shop catalogue');
     }
 
-    const userRef = adminDb.collection('users').doc(uid);
     const invDocId = `inv_${uid}_${itemId}`;
-    const invRef = adminDb.collection('inventory').doc(invDocId);
+    const [userSnap, invSnap] = await Promise.all([
+      serverDb.getDoc<UserProfile>('users', uid, token),
+      serverDb.getDoc<InventoryItem>('inventory', invDocId, token)
+    ]);
+
+    if (!userSnap.exists) {
+      throw new Error('User not found');
+    }
+
+    const user = userSnap.data()!;
+
+    // 1. Level Gate Check
+    const userLevel = user.level || 1;
+    if (userLevel < item.requiredLevel) {
+      throw new Error(`Level requirement not met. Item requires Level ${item.requiredLevel}, but you are Level ${userLevel}.`);
+    }
+
+    // 2. Gold Balance Check
+    const currentGold = user.gold || 0;
+    if (currentGold < item.price) {
+      throw new Error(`Insufficient gold. You have ${currentGold} Gold, but this item costs ${item.price} Gold.`);
+    }
+
+    // 3. Duplicate Ownership Check
+    if (invSnap.exists) {
+      throw new Error('You already own this item!');
+    }
 
     const now = new Date().toISOString();
+    const newGold = currentGold - item.price;
+    const userUpdates: Record<string, any> = {
+      gold: newGold,
+      updatedAt: now
+    };
 
-    const updatedUser = await adminDb.runTransaction(async (transaction) => {
-      const [userSnap, invSnap] = await Promise.all([
-        transaction.get(userRef),
-        transaction.get(invRef)
-      ]);
+    if (item.category === 'characters' && item.previewUrl) {
+      userUpdates.customAvatarUrl = item.previewUrl;
+    }
 
-      if (!userSnap.exists) {
-        throw new Error('User not found');
-      }
-
-      const user = userSnap.data() as UserProfile;
-
-      // 1. Level Gate Check
-      const userLevel = user.level || 1;
-      if (userLevel < item.requiredLevel) {
-        throw new Error(`Level requirement not met. Item requires Level ${item.requiredLevel}, but you are Level ${userLevel}.`);
-      }
-
-      // 2. Gold Balance Check
-      const currentGold = user.gold || 0;
-      if (currentGold < item.price) {
-        throw new Error(`Insufficient gold. You have ${currentGold} Gold, but this item costs ${item.price} Gold.`);
-      }
-
-      // 3. Duplicate Ownership Check
-      if (invSnap.exists) {
-        throw new Error('You already own this item!');
-      }
-
-      const newGold = currentGold - item.price;
-      const userUpdates: Record<string, any> = {
-        gold: newGold,
-        updatedAt: now
-      };
-
-      // If user purchases a character avatar, set it as active avatar
-      if (item.category === 'characters' && item.previewUrl) {
-        userUpdates.customAvatarUrl = item.previewUrl;
-      }
-
-      // Transaction Writes: Gold deduction + Inventory item creation
-      transaction.update(userRef, userUpdates);
-      transaction.set(invRef, {
+    await Promise.all([
+      serverDb.updateDoc('users', uid, userUpdates, token),
+      serverDb.setDoc('inventory', invDocId, {
         id: invDocId,
         userId: uid,
         itemId: item.id,
         purchasedAt: now
-      });
+      }, token)
+    ]);
 
-      return {
-        ...user,
-        ...userUpdates
-      } as UserProfile;
-    });
+    const updatedUser: UserProfile = {
+      ...user,
+      ...userUpdates
+    };
 
-    const allInv = await this.getInventory(uid);
+    const allInv = await this.getInventory(uid, token);
     return {
       user: updatedUser,
       item,
@@ -640,30 +604,28 @@ export const progressionService = {
    * Secure, Server-Authoritative Item Equipping
    * Verifies the user genuinely owns the item in their inventory before applying cosmetic changes.
    */
-  async equipItem(uid: string, itemId: string, unequip = false): Promise<{ user: UserProfile }> {
+  async equipItem(uid: string, itemId: string, unequip = false, token?: string): Promise<{ user: UserProfile }> {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) {
       throw new Error('Item not found in official catalogue');
     }
 
-    const userRef = adminDb.collection('users').doc(uid);
-    const userSnap = await userRef.get();
+    const userSnap = await serverDb.getDoc<UserProfile>('users', uid, token);
     if (!userSnap.exists) throw new Error('User not found');
-    const user = userSnap.data() as UserProfile;
+    const user = userSnap.data()!;
 
     // Security check: Verify user owns the item before equipping!
     if (!unequip && itemId !== STARTER_CHARACTER_ID) {
       const invDocId = `inv_${uid}_${itemId}`;
-      const invSnap = await adminDb.collection('inventory').doc(invDocId).get();
+      const invSnap = await serverDb.getDoc('inventory', invDocId, token);
 
       if (!invSnap.exists) {
-        // Double check query in case of alternate ID
-        const altSnap = await adminDb.collection('inventory')
-          .where('userId', '==', uid)
-          .where('itemId', '==', itemId)
-          .get();
+        const altDocs = await serverDb.queryDocs('inventory', [
+          { field: 'userId', op: '==', value: uid },
+          { field: 'itemId', op: '==', value: itemId }
+        ], token);
 
-        if (altSnap.empty) {
+        if (altDocs.length === 0) {
           throw new Error('Unauthorized: You do not own this cosmetic item in your inventory');
         }
       }
@@ -687,7 +649,7 @@ export const progressionService = {
       updates.equippedBackground = unequip ? 'bg-citadel' : item.id;
     }
 
-    await userRef.update(updates);
+    await serverDb.updateDoc('users', uid, updates, token);
 
     return {
       user: {
@@ -697,15 +659,17 @@ export const progressionService = {
     };
   },
 
-  async getAchievements(uid: string): Promise<(Achievement & { unlocked: boolean; unlockedAt?: string })[]> {
-    const userAchsSnap = await adminDb.collection('userAchievements')
-      .where('userId', '==', uid)
-      .get();
+  async getAchievements(uid: string, token?: string): Promise<(Achievement & { unlocked: boolean; unlockedAt?: string })[]> {
+    const achDocs = await serverDb.queryDocs('userAchievements', [
+      { field: 'userId', op: '==', value: uid }
+    ], token);
 
     const unlockedMap = new Map<string, string>();
-    userAchsSnap.forEach(d => {
-      const data = d.data();
-      unlockedMap.set(data.achievementId, data.unlockedAt);
+    achDocs.forEach(d => {
+      const data = d.data() as any;
+      if (data && data.achievementId) {
+        unlockedMap.set(data.achievementId, data.unlockedAt);
+      }
     });
 
     return ACHIEVEMENTS.map(ach => ({
@@ -715,7 +679,7 @@ export const progressionService = {
     }));
   },
 
-  async getProgress(uid: string): Promise<{
+  async getProgress(uid: string, token?: string): Promise<{
     history: any[];
     historyByDate: Record<string, { xp: number; gold: number; count: number }>;
     stats: CharacterStats;
@@ -724,17 +688,17 @@ export const progressionService = {
     currentStreak: number;
     longestStreak: number;
   }> {
-    const [histSnap, questsSnap, userRes] = await Promise.all([
-      adminDb.collection('questHistory').where('userId', '==', uid).get(),
-      adminDb.collection('quests').where('userId', '==', uid).get(),
-      this.getUser(uid)
+    const [histDocs, quests, userRes] = await Promise.all([
+      serverDb.queryDocs('questHistory', [{ field: 'userId', op: '==', value: uid }], token),
+      this.getQuests(uid, token),
+      this.getUser(uid, token)
     ]);
 
     const history: any[] = [];
     const historyByDate: Record<string, { xp: number; gold: number; count: number }> = {};
 
-    histSnap.forEach(d => {
-      const item = d.data();
+    histDocs.forEach(d => {
+      const item = d.data() as any;
       history.push(item);
       const dateKey = (item.completedAt || '').split('T')[0] || 'today';
       if (!historyByDate[dateKey]) {
@@ -750,7 +714,7 @@ export const progressionService = {
       historyByDate,
       stats: userRes.stats,
       totalCompleted: history.length,
-      totalQuests: questsSnap.size,
+      totalQuests: quests.length,
       currentStreak: userRes.user.currentStreak || 0,
       longestStreak: userRes.user.longestStreak || 0
     };
