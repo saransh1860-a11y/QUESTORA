@@ -3,12 +3,32 @@ import { auth } from '../lib/firebase';
 
 const API_BASE = '/api';
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}, retry = true): Promise<T> {
   const user = auth.currentUser;
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string,string> || {}) };
   if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
   const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
+
+  // Firebase ID tokens are normally refreshed automatically. If a cached token
+  // is rejected by the backend, force one refresh and retry the same request once.
+  if (response.status === 401 && retry && auth.currentUser) {
+    try {
+      const freshUser = auth.currentUser;
+      const freshToken = await freshUser.getIdToken(true);
+      const retryHeaders: Record<string, string> = {
+        ...headers,
+        Authorization: `Bearer ${freshToken}`,
+      };
+      const retryResponse = await fetch(`${API_BASE}${endpoint}`, { ...options, headers: retryHeaders });
+      const retryData = await retryResponse.json().catch(() => ({}));
+      if (!retryResponse.ok) throw new Error(retryData.error || 'API Request failed');
+      return retryData as T;
+    } catch (refreshError) {
+      if (refreshError instanceof Error && refreshError.message) throw refreshError;
+    }
+  }
+
   if (!response.ok) throw new Error(data.error || 'API Request failed');
   return data as T;
 }
