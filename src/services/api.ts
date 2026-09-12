@@ -12,45 +12,83 @@ import {
   AttributeType
 } from '../types';
 import { auth } from '../lib/firebase';
-import { firestoreService } from './firestoreService';
+import { SHOP_ITEMS } from '../data/shopAndAchievements';
 
-function getRequiredUid(): string {
+async function getAuthToken(): Promise<string> {
   const user = auth.currentUser;
-  if (!user) throw new Error('User not authenticated with Firebase');
-  return user.uid;
+  if (!user) {
+    throw new Error('User not authenticated with Firebase');
+  }
+  return await user.getIdToken();
+}
+
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = await getAuthToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers
+  };
+
+  const res = await fetch(endpoint, {
+    ...options,
+    headers
+  });
+
+  if (!res.ok) {
+    let errorMsg = `Request failed (${res.status})`;
+    try {
+      const errData = await res.json();
+      if (errData && errData.error) {
+        errorMsg = errData.error;
+      }
+    } catch {
+      // fallback
+    }
+    throw new Error(errorMsg);
+  }
+
+  return await res.json();
 }
 
 export const api = {
   loginWithGoogle: async (): Promise<{ user: UserProfile; stats: CharacterStats }> => {
-    const user = auth.currentUser;
-    if (!user) throw new Error('No authenticated Firebase user found');
-    return await firestoreService.initOrGetUser(user);
+    return await request<{ user: UserProfile; stats: CharacterStats }>('/api/user/init', {
+      method: 'POST'
+    });
   },
 
   getMe: async (): Promise<{ user: UserProfile; stats: CharacterStats }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.getUser(uid);
+    return await request<{ user: UserProfile; stats: CharacterStats }>('/api/user/me', {
+      method: 'GET'
+    });
   },
 
   onboardingSetup: async (payload: { characterClass?: string; goals?: string[] }): Promise<{ user: UserProfile; stats: CharacterStats }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.onboardingSetup(uid, payload);
+    return await request<{ user: UserProfile; stats: CharacterStats }>('/api/user/onboarding', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
 
   updateAvatar: async (payload: { customAvatarUrl?: string; userPhotoUrl?: string }): Promise<{ user: UserProfile; stats: CharacterStats }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.updateAvatar(uid, payload);
+    return await request<{ user: UserProfile; stats: CharacterStats }>('/api/user/avatar', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
 
   updateGender: async (gender: 'male' | 'female'): Promise<{ user: UserProfile; stats: CharacterStats }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.updateGender(uid, gender);
+    return await request<{ user: UserProfile; stats: CharacterStats }>('/api/user/gender', {
+      method: 'POST',
+      body: JSON.stringify({ gender })
+    });
   },
 
   getQuests: async (): Promise<{ quests: Quest[] }> => {
-    const uid = getRequiredUid();
-    const quests = await firestoreService.getQuests(uid);
-    return { quests };
+    return await request<{ quests: Quest[] }>('/api/quests', {
+      method: 'GET'
+    });
   },
 
   createQuest: async (payload: {
@@ -62,14 +100,16 @@ export const api = {
     frequency: QuestFrequency;
     attributeTarget?: AttributeType;
   }): Promise<{ quest: Quest }> => {
-    const uid = getRequiredUid();
-    const quest = await firestoreService.createQuest(uid, payload);
-    return { quest };
+    return await request<{ quest: Quest }>('/api/quests', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
 
   deleteQuest: async (questId: string): Promise<{ success: boolean }> => {
-    const success = await firestoreService.deleteQuest(questId);
-    return { success };
+    return await request<{ success: boolean }>(`/api/quests/${questId}`, {
+      method: 'DELETE'
+    });
   },
 
   completeQuest: async (questId: string): Promise<{
@@ -81,34 +121,55 @@ export const api = {
     levelData: { level: number; currentLevelXp: number; nextLevelXp: number; progressPct: number };
     unlockedAchievements: Achievement[];
   }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.completeQuest(uid, questId);
+    // Only questId is submitted. Server authoritatively determines XP, Gold, Level, Attributes, Streak & Achievements
+    return await request<{
+      quest: Quest;
+      user: UserProfile;
+      stats: CharacterStats;
+      didLevelUp: boolean;
+      newLevel: number;
+      levelData: { level: number; currentLevelXp: number; nextLevelXp: number; progressPct: number };
+      unlockedAchievements: Achievement[];
+    }>('/api/quests/complete', {
+      method: 'POST',
+      body: JSON.stringify({ questId })
+    });
   },
 
   getShopItems: async (): Promise<{ items: ShopItem[] }> => {
-    const items = firestoreService.getShopItems();
-    return { items };
+    try {
+      return await request<{ items: ShopItem[] }>('/api/shop/items', { method: 'GET' });
+    } catch {
+      return { items: SHOP_ITEMS };
+    }
   },
 
   buyShopItem: async (itemId: string): Promise<{ user: UserProfile; item: ShopItem; inventory: InventoryItem[] }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.buyShopItem(uid, itemId);
+    // Only itemId is submitted. Server authoritatively validates level, price, ownership & executes Firestore transaction
+    return await request<{ user: UserProfile; item: ShopItem; inventory: InventoryItem[] }>('/api/shop/buy', {
+      method: 'POST',
+      body: JSON.stringify({ itemId })
+    });
   },
 
   getInventory: async (): Promise<{ inventory: InventoryItem[]; items: ShopItem[] }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.getInventory(uid);
+    return await request<{ inventory: InventoryItem[]; items: ShopItem[] }>('/api/inventory', {
+      method: 'GET'
+    });
   },
 
   equipItem: async (itemId: string, unequip = false): Promise<{ user: UserProfile }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.equipItem(uid, itemId, unequip);
+    // Only itemId & unequip flag submitted. Server validates ownership before allowing cosmetic equip
+    return await request<{ user: UserProfile }>('/api/inventory/equip', {
+      method: 'POST',
+      body: JSON.stringify({ itemId, unequip })
+    });
   },
 
   getAchievements: async (): Promise<{ achievements: (Achievement & { unlocked: boolean; unlockedAt?: string })[] }> => {
-    const uid = getRequiredUid();
-    const achievements = await firestoreService.getAchievements(uid);
-    return { achievements };
+    return await request<{ achievements: (Achievement & { unlocked: boolean; unlockedAt?: string })[] }>('/api/achievements', {
+      method: 'GET'
+    });
   },
 
   getProgress: async (): Promise<{
@@ -120,7 +181,16 @@ export const api = {
     currentStreak: number;
     longestStreak: number;
   }> => {
-    const uid = getRequiredUid();
-    return await firestoreService.getProgress(uid);
+    return await request<{
+      history: any[];
+      historyByDate: Record<string, { xp: number; gold: number; count: number }>;
+      stats: CharacterStats;
+      totalCompleted: number;
+      totalQuests: number;
+      currentStreak: number;
+      longestStreak: number;
+    }>('/api/progress', {
+      method: 'GET'
+    });
   }
 };
