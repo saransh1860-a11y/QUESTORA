@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 64 },
+        "email": { "type": "string", "maxLength": 128 },
+        "characterClass": { "type": "string", "maxLength": 64 },
+        "level": { "type": "number" },
+        "xp": { "type": "number" },
+        "gold": { "type": "number" },
+        "streak": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "username", "email", "level", "xp", "gold"]
+    },
+    "CharacterStats": {
+      "title": "CharacterStats",
+      "description": "Attributes of the user character",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "strength": { "type": "number" },
+        "intelligence": { "type": "number" },
+        "endurance": { "type": "number" },
+        "vitality": { "type": "number" },
+        "focus": { "type": "number" },
+        "agility": { "type": "number" }
+      },
+      "required": ["userId", "strength", "intelligence", "endurance", "vitality", "focus", "agility"]
+    },
+    "Quest": {
+      "title": "Quest",
+      "description": "User RPG Quest",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 64 },
+        "difficulty": { "type": "string", "maxLength": 32 },
+        "type": { "type": "string", "maxLength": 32 },
+        "frequency": { "type": "string", "maxLength": 32 },
+        "xpReward": { "type": "number" },
+        "goldReward": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "category", "difficulty", "type", "frequency", "xpReward", "goldReward", "completed"]
+    },
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "description": "Item owned by user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "itemId": { "type": "string", "maxLength": 128 },
+        "equipped": { "type": "boolean" },
+        "acquiredAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "itemId", "equipped"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document"
+    },
+    "/users/{userId}/stats/{statId}": {
+      "schema": { "$ref": "#/entities/CharacterStats" },
+      "description": "User stats subcollection"
+    },
+    "/users/{userId}/quests/{questId}": {
+      "schema": { "$ref": "#/entities/Quest" },
+      "description": "User quests subcollection"
+    },
+    "/users/{userId}/inventory/{inventoryId}": {
+      "schema": { "$ref": "#/entities/InventoryItem" },
+      "description": "User inventory items subcollection"
+    }
+  }
+}

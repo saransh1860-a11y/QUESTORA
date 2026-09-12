@@ -1,0 +1,6 @@
+{
+  "name": "QUESTORA",
+  "description": "Turn your real-life goals into quests, earn XP, build your character, maintain streaks, and unlock rewards with QUESTORA.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
