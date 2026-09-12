@@ -72,17 +72,25 @@
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "User profile document"
     },
-    "/users/{userId}/stats/{statId}": {
+    "/stats/{userId}": {
       "schema": { "$ref": "#/entities/CharacterStats" },
-      "description": "User stats subcollection"
+      "description": "User character attributes document"
     },
-    "/users/{userId}/quests/{questId}": {
+    "/quests/{questId}": {
       "schema": { "$ref": "#/entities/Quest" },
-      "description": "User quests subcollection"
+      "description": "User quests document with userId field"
     },
-    "/users/{userId}/inventory/{inventoryId}": {
+    "/inventory/{inventoryId}": {
       "schema": { "$ref": "#/entities/InventoryItem" },
-      "description": "User inventory items subcollection"
+      "description": "User inventory items document with userId field"
+    },
+    "/questHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/Quest" },
+      "description": "Completed quest completion history logs"
+    },
+    "/userAchievements/{userAchievementId}": {
+      "schema": { "type": "object" },
+      "description": "Unlocked achievements for user"
     }
   }
 }

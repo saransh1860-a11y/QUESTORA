@@ -1,52 +1,126 @@
-import { UserProfile, CharacterStats, Quest, Achievement, ShopItem, InventoryItem, QuestCategory, QuestDifficulty, QuestType, QuestFrequency, AttributeType } from '../types';
+import {
+  UserProfile,
+  CharacterStats,
+  Quest,
+  Achievement,
+  ShopItem,
+  InventoryItem,
+  QuestCategory,
+  QuestDifficulty,
+  QuestType,
+  QuestFrequency,
+  AttributeType
+} from '../types';
 import { auth } from '../lib/firebase';
+import { firestoreService } from './firestoreService';
 
-const API_BASE = '/api';
-
-async function request<T>(endpoint: string, options: RequestInit = {}, retry = true): Promise<T> {
+function getRequiredUid(): string {
   const user = auth.currentUser;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string,string> || {}) };
-  if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
-  const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-  const data = await response.json().catch(() => ({}));
-
-  // Firebase ID tokens are normally refreshed automatically. If a cached token
-  // is rejected by the backend, force one refresh and retry the same request once.
-  if (response.status === 401 && retry && auth.currentUser) {
-    try {
-      const freshUser = auth.currentUser;
-      const freshToken = await freshUser.getIdToken(true);
-      const retryHeaders: Record<string, string> = {
-        ...headers,
-        Authorization: `Bearer ${freshToken}`,
-      };
-      const retryResponse = await fetch(`${API_BASE}${endpoint}`, { ...options, headers: retryHeaders });
-      const retryData = await retryResponse.json().catch(() => ({}));
-      if (!retryResponse.ok) throw new Error(retryData.error || 'API Request failed');
-      return retryData as T;
-    } catch (refreshError) {
-      if (refreshError instanceof Error && refreshError.message) throw refreshError;
-    }
-  }
-
-  if (!response.ok) throw new Error(data.error || 'API Request failed');
-  return data as T;
+  if (!user) throw new Error('User not authenticated with Firebase');
+  return user.uid;
 }
 
 export const api = {
-  loginWithGoogle: () => request<{user:UserProfile;stats:CharacterStats}>('/auth/google',{method:'POST'}),
-  getMe: () => request<{user:UserProfile;stats:CharacterStats}>('/auth/me'),
-  onboardingSetup: (payload:{characterClass?:string;goals?:string[]}) => request<{user:UserProfile;stats:CharacterStats}>('/onboarding/setup',{method:'POST',body:JSON.stringify(payload)}),
-  updateAvatar: (payload:{customAvatarUrl?:string;userPhotoUrl?:string}) => request<{user:UserProfile;stats:CharacterStats}>('/user/avatar',{method:'POST',body:JSON.stringify(payload)}),
-  updateGender: (gender:'male'|'female') => request<{user:UserProfile;stats:CharacterStats}>('/user/gender',{method:'POST',body:JSON.stringify({gender})}),
-  getQuests: () => request<{quests:Quest[]}>('/quests'),
-  createQuest: (payload:{title:string;description?:string;category:QuestCategory;difficulty:QuestDifficulty;type:QuestType;frequency:QuestFrequency;attributeTarget?:AttributeType}) => request<{quest:Quest}>('/quests',{method:'POST',body:JSON.stringify(payload)}),
-  deleteQuest: (questId:string) => request<{success:boolean}>(`/quests/${questId}`,{method:'DELETE'}),
-  completeQuest: (questId:string) => request<{quest:Quest;user:UserProfile;stats:CharacterStats;didLevelUp:boolean;newLevel:number;levelData:{level:number;currentLevelXp:number;nextLevelXp:number;progressPct:number};unlockedAchievements:Achievement[]}>(`/quests/${questId}/complete`,{method:'POST'}),
-  getShopItems: () => request<{items:ShopItem[]}>('/shop'),
-  buyShopItem: (itemId:string) => request<{user:UserProfile;item:ShopItem;inventory:InventoryItem[]}>('/shop/buy',{method:'POST',body:JSON.stringify({itemId})}),
-  getInventory: () => request<{inventory:InventoryItem[];items:ShopItem[]}>('/inventory'),
-  equipItem: (itemId:string,unequip=false) => request<{user:UserProfile}>('/inventory/equip',{method:'POST',body:JSON.stringify({itemId,unequip})}),
-  getAchievements: () => request<{achievements:(Achievement & {unlocked:boolean;unlockedAt?:string})[]}>('/achievements'),
-  getProgress: () => request<{history:any[];historyByDate:Record<string,{xp:number;gold:number;count:number}>;stats:CharacterStats;totalCompleted:number;totalQuests:number;currentStreak:number;longestStreak:number}>('/progress')
+  loginWithGoogle: async (): Promise<{ user: UserProfile; stats: CharacterStats }> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No authenticated Firebase user found');
+    return await firestoreService.initOrGetUser(user);
+  },
+
+  getMe: async (): Promise<{ user: UserProfile; stats: CharacterStats }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.getUser(uid);
+  },
+
+  onboardingSetup: async (payload: { characterClass?: string; goals?: string[] }): Promise<{ user: UserProfile; stats: CharacterStats }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.onboardingSetup(uid, payload);
+  },
+
+  updateAvatar: async (payload: { customAvatarUrl?: string; userPhotoUrl?: string }): Promise<{ user: UserProfile; stats: CharacterStats }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.updateAvatar(uid, payload);
+  },
+
+  updateGender: async (gender: 'male' | 'female'): Promise<{ user: UserProfile; stats: CharacterStats }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.updateGender(uid, gender);
+  },
+
+  getQuests: async (): Promise<{ quests: Quest[] }> => {
+    const uid = getRequiredUid();
+    const quests = await firestoreService.getQuests(uid);
+    return { quests };
+  },
+
+  createQuest: async (payload: {
+    title: string;
+    description?: string;
+    category: QuestCategory;
+    difficulty: QuestDifficulty;
+    type: QuestType;
+    frequency: QuestFrequency;
+    attributeTarget?: AttributeType;
+  }): Promise<{ quest: Quest }> => {
+    const uid = getRequiredUid();
+    const quest = await firestoreService.createQuest(uid, payload);
+    return { quest };
+  },
+
+  deleteQuest: async (questId: string): Promise<{ success: boolean }> => {
+    const success = await firestoreService.deleteQuest(questId);
+    return { success };
+  },
+
+  completeQuest: async (questId: string): Promise<{
+    quest: Quest;
+    user: UserProfile;
+    stats: CharacterStats;
+    didLevelUp: boolean;
+    newLevel: number;
+    levelData: { level: number; currentLevelXp: number; nextLevelXp: number; progressPct: number };
+    unlockedAchievements: Achievement[];
+  }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.completeQuest(uid, questId);
+  },
+
+  getShopItems: async (): Promise<{ items: ShopItem[] }> => {
+    const items = firestoreService.getShopItems();
+    return { items };
+  },
+
+  buyShopItem: async (itemId: string): Promise<{ user: UserProfile; item: ShopItem; inventory: InventoryItem[] }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.buyShopItem(uid, itemId);
+  },
+
+  getInventory: async (): Promise<{ inventory: InventoryItem[]; items: ShopItem[] }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.getInventory(uid);
+  },
+
+  equipItem: async (itemId: string, unequip = false): Promise<{ user: UserProfile }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.equipItem(uid, itemId, unequip);
+  },
+
+  getAchievements: async (): Promise<{ achievements: (Achievement & { unlocked: boolean; unlockedAt?: string })[] }> => {
+    const uid = getRequiredUid();
+    const achievements = await firestoreService.getAchievements(uid);
+    return { achievements };
+  },
+
+  getProgress: async (): Promise<{
+    history: any[];
+    historyByDate: Record<string, { xp: number; gold: number; count: number }>;
+    stats: CharacterStats;
+    totalCompleted: number;
+    totalQuests: number;
+    currentStreak: number;
+    longestStreak: number;
+  }> => {
+    const uid = getRequiredUid();
+    return await firestoreService.getProgress(uid);
+  }
 };

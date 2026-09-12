@@ -43,6 +43,8 @@ export interface UserProfile {
     eyes?: string;
     accessory?: string;
   };
+  goals?: string[];
+  onboardingCompleted?: boolean;
   createdAt: string;
 }
 

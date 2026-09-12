@@ -14,7 +14,7 @@ export const OnboardingView: React.FC = () => {
     classTag: 'Warrior / Balanced Defender',
     image: '/avatars/rpg_warrior_avatar_1789192164641.jpg',
     description: 'Forged in high-tech obsidian alloy plate with a luminous violet energy blade. Assigned as your starter hero.',
-    stats: '+1 to All Attributes',
+    stats: 'All Attributes: 0 PTS (Earn via Quests)',
     level: 1
   };
 

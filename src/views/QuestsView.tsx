@@ -104,6 +104,27 @@ export const QuestsView: React.FC = () => {
             <QuestCard key={quest.id} quest={quest} />
           ))}
         </div>
+      ) : quests.length === 0 ? (
+        <div className="rounded-3xl bg-[#10121a] border border-slate-800 p-10 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-violet-950/60 border border-violet-800/40 text-violet-400 flex items-center justify-center mx-auto">
+            <Plus className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white font-['Orbitron']">
+              NO QUESTS FOUND
+            </h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+              Your quest log is completely empty. Create your own custom real-life quests to start your adventure!
+            </p>
+          </div>
+          <button
+            onClick={() => setIsCreateQuestOpen(true)}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>CREATE YOUR FIRST QUEST</span>
+          </button>
+        </div>
       ) : (
         <div className="rounded-3xl bg-[#10121a] border border-slate-800 p-10 text-center space-y-3">
           <p className="text-sm text-slate-400 font-mono">No quests found matching your search or filters.</p>
