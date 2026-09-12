@@ -1,78 +1,86 @@
 # QUESTORA — Level Up Your Real Life
 
-> **"I am playing a game, but the game is my real life."**
+> **Your life. Your quest. Your character.**
 
-QUESTORA is a full-stack, production-quality gamified real-life productivity and personal progression platform built on Role-Playing Game (RPG) mechanics.
+QUESTORA turns real-life goals, habits, and tasks into RPG quests. Complete quests to earn XP, Gold, attributes, streaks, achievements, and cosmetic progression.
 
----
+## Core loop
 
-## 🌟 Product Concept & Core Philosophy
+**Real-world action → Quest → XP + Gold → Attributes → Level → Cosmetics → visible progress**
 
-Every real-life goal, habit, or task becomes a **Quest**.
-- Completing quests yields **XP**, **Gold 🪙**, and **Attribute Points** (Intellect, Strength, Discipline, Wisdom, Creativity).
-- **XP** drives non-linear level progression on an exponential growth curve.
-- **Gold** purchases RPG cosmetics (Wearables, Frames, Aura FX, Themes, Titles, Backgrounds).
-- **Performance Achievements** unlock automatically through streak maintenance and goal execution (badges are strictly earned, never purchased).
-- Your virtual RPG avatar evolves visually as you accomplish real-world goals.
+Badges and achievements are earned through performance and are never purchasable.
 
----
+## Demo flow
 
-## 🚀 90-180 Second Demo Flow
+1. Continue with Google.
+2. Create your character and choose goals.
+3. Create a quest.
+4. Complete it and watch XP, Gold, attributes, streaks, and achievement feedback update.
+5. Open Rewards and preview/buy cosmetics.
+6. Equip an item.
+7. Refresh the page and sign in again to prove Firestore persistence.
 
-1. **SIGN UP / LOG IN**: Create a character or click **⚡ Instant Demo Login**.
-2. **CHARACTER CREATION**: Select an RPG Archetype (Scholar, Warrior, Engineer, Creator, Balanced) and set growth goals.
-3. **MAIN DASHBOARD**: View your custom character avatar, current level (LVL 3), XP progress bar, and active quests.
-4. **CREATE QUEST**: Click **+ NEW QUEST** to add a task with difficulty rating (Easy, Medium, Hard, Epic).
-5. **COMPLETE QUEST**: Click **COMPLETE QUEST** to trigger the reward animation (+XP, +Gold, +Attribute gain).
-6. **LEVEL UP / UNLOCK**: Experience the non-linear XP bar fill up, level up fanfare, and achievement popups!
-7. **REWARD SHOP**: Open the Reward Shop, select a cosmetic item (e.g., Cyberpunk Visor, Aura Crown, Flame FX), click **TRY ON** for real-time live avatar preview, and purchase with Gold.
-8. **ARMORY / INVENTORY**: Equip or unequip cosmetics in your inventory.
-9. **PERSISTENCE PROOF**: Refresh the browser page or log out/in — all progression, XP, Gold, streak, and inventory persist in the database.
+## Technology stack
 
----
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Motion, Web Audio API, Canvas Confetti.
+- **Authentication:** Firebase Authentication with **Google OAuth only**.
+- **Backend:** Express API, deployable as a Vercel serverless function and runnable locally through `server-v2.ts`.
+- **Database:** Firebase Firestore. No JSON/disk database is used as application persistence.
+- **Server security:** Firebase Admin SDK verifies Firebase ID tokens. The server derives the user ID from the verified token; the client cannot choose another user's UID.
+- **Progression security:** XP, Gold, level calculations, streaks, achievements, inventory ownership, level gates, and shop prices are validated server-side.
 
-## 🛠️ Technology Stack
+## Firestore data model
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Web Audio API Synthesizer, Canvas Confetti.
-- **Backend**: Express REST Server running full-stack on Node.js / Vite middleware mode.
-- **Database & Persistence**: Persistent Relational JSON/Disk database store in `./data/db.json` with atomic file transactions.
-- **Authentication**: JWT session tokens + bcrypt password hashing.
+- `users/{uid}` — account, character, progression, streak, equipped cosmetics.
+- `stats/{uid}` — Intellect, Strength, Discipline, Wisdom, Creativity.
+- `quests/{questId}` — user-owned quest records.
+- `questHistory/{historyId}` — immutable progression history.
+- `userAchievements/{uid_achievementId}` — earned achievement records.
+- `inventory/{uid_itemId}` — owned cosmetic records.
 
----
+Quest completion and shop purchases use Firestore transactions so the economy cannot be updated by a stale client state.
 
-## 🗄️ Relational Database Schema
-
-- `Users`: id, email, passwordHash, username, characterClass, level, totalXp, gold, currentStreak, longestStreak, equippedCosmetics, createdAt.
-- `CharacterStats`: userId, intellect, strength, discipline, wisdom, creativity.
-- `Quests`: id, userId, title, description, category, difficulty, type, frequency, xpReward, goldReward, attributeReward, completed, createdAt.
-- `QuestHistory`: id, userId, questId, questTitle, category, xpEarned, goldEarned, attributeReward, completedAt.
-- `Achievements`: id, name, description, icon, requirement, xpReward, goldReward.
-- `UserAchievements`: userId, achievementId, unlockedAt.
-- `ShopItems`: id, name, description, category, price, requiredLevel, icon, slot.
-- `Inventory`: id, userId, itemId, purchasedAt.
-
----
-
-## ⚡ Local Setup Instructions
+## Local setup
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/questora/questora.git
-cd questora
-
-# 2. Install dependencies
+git clone https://github.com/saransh1860-a11y/QUESTORA.git
+cd QUESTORA
 npm install
-
-# 3. Start development server (serves Express API + Vite on port 3000)
 npm run dev
-
-# 4. Open in browser
-http://localhost:3000
 ```
 
----
+The local development server runs the Vite frontend and Firestore-backed API together.
 
-## 🔒 Security & Anti-Cheating
+## Environment variables
 
-- All progression math (XP calculation, level thresholds, Gold rewards, item prices, level lock requirements, streak counters) is computed and validated **server-side**.
-- Badges and achievements cannot be purchased or altered client-side.
+Copy `.env.example` and configure the Firebase Admin credentials for the API. Never commit a real Firebase private key.
+
+The Firebase web configuration used by the client must have Google sign-in enabled and Firestore provisioned in the Firebase console.
+
+## Vercel deployment
+
+- Build command: `npm run build`
+- Output directory: `dist`
+- API: `api/[[...path]].ts`
+- Runtime: Node.js 20
+- Required server environment variables: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+
+After deployment, verify this complete flow on the production URL:
+
+**Google login → create quest → complete quest → XP/Gold/attribute update → reward purchase → refresh → login again → persistence confirmed.**
+
+## Accessibility and UX
+
+QUESTORA uses semantic controls, visible focus states, labelled inputs, responsive layouts, reduced-motion considerations, and immediate feedback for quest completion and progression.
+
+## Security checklist
+
+- Google OAuth only.
+- Firebase ID tokens verified server-side.
+- No JWT session storage.
+- No email/password authentication.
+- No client-trusted UID for protected operations.
+- No localStorage/db.json as the primary database.
+- User-owned records are scoped by verified UID.
+- Progression and economy are calculated server-side.
+- Purchases reject insufficient Gold, locked items, and duplicate ownership.
