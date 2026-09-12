@@ -320,11 +320,38 @@ registerRoute('get', '/api/progress', [
   }
 ]);
 
-// 8. Fallback 404 handler for API routes
-app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    error: `API endpoint not found: ${req.method} ${req.url}`
+// Root / Info endpoint for API
+app.get(['/api', '/api/'], (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'QUESTORA Secure Progression API',
+    endpoints: [
+      '/api/health',
+      '/api/user/init',
+      '/api/user/me',
+      '/api/quests',
+      '/api/quests/complete',
+      '/api/shop/items',
+      '/api/shop/buy',
+      '/api/inventory',
+      '/api/achievements',
+      '/api/progress'
+    ],
+    timestamp: new Date().toISOString()
   });
+});
+
+// 8. Fallback 404 handler for API routes
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // If the request starts with /api or is an API request, return JSON 404
+  if (req.url.startsWith('/api') || req.originalUrl?.startsWith('/api')) {
+    res.status(404).json({
+      error: `API endpoint not found: ${req.method} ${req.originalUrl || req.url}`
+    });
+    return;
+  }
+  // Otherwise pass through to Vite / static frontend handler
+  next();
 });
 
 // 9. Global error handler
