@@ -3,6 +3,19 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import fs from 'node:fs';
 import path from 'node:path';
+import fallbackAppletConfig from '../../firebase-applet-config.json';
+
+function formatPrivateKey(rawKey?: string): string | undefined {
+  if (!rawKey) return undefined;
+  let key = rawKey.trim();
+  // Strip surrounding quotes if wrapped
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.substring(1, key.length - 1);
+  }
+  // Replace literal \n or escaped newlines with actual newline characters
+  key = key.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+  return key;
+}
 
 function initializeFirebaseAdmin(): { app: admin.app.App; auth: Auth; db: Firestore } {
   let app: admin.app.App;
@@ -12,7 +25,8 @@ function initializeFirebaseAdmin(): { app: admin.app.App; auth: Auth; db: Firest
   } else {
     let projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+    const privateKey = formatPrivateKey(rawPrivateKey);
 
     try {
       const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -22,23 +36,28 @@ function initializeFirebaseAdmin(): { app: admin.app.App; auth: Auth; db: Firest
           projectId = config.projectId;
         }
       }
-    } catch (err) {
-      console.warn('Could not read firebase-applet-config.json:', err);
+    } catch {
+      // Fallback to static imported config
+      if (!projectId && fallbackAppletConfig?.projectId) {
+        projectId = fallbackAppletConfig.projectId;
+      }
     }
+
+    const targetProjectId = projectId || fallbackAppletConfig?.projectId || 'gen-lang-client-0847187407';
 
     if (clientEmail && privateKey) {
       app = admin.initializeApp({
         credential: admin.credential.cert({
-          projectId: projectId || 'gen-lang-client-0847187407',
+          projectId: targetProjectId,
           clientEmail,
-          privateKey: privateKey.replace(/\\n/g, '\n')
+          privateKey
         }),
-        projectId: projectId || 'gen-lang-client-0847187407'
+        projectId: targetProjectId
       });
     } else {
-      // In Google Cloud Run / Container environments, ADC credentials are automatically used
+      // Cloud Run / Google Cloud containers use Application Default Credentials (ADC)
       app = admin.initializeApp({
-        projectId: projectId || 'gen-lang-client-0847187407'
+        projectId: targetProjectId
       });
     }
   }
@@ -53,7 +72,9 @@ function initializeFirebaseAdmin(): { app: admin.app.App; auth: Auth; db: Firest
       }
     }
   } catch {
-    // fallback
+    if (!databaseId && (fallbackAppletConfig as any)?.firestoreDatabaseId) {
+      databaseId = (fallbackAppletConfig as any).firestoreDatabaseId;
+    }
   }
 
   const auth = getAuth(app);

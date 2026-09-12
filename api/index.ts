@@ -1,14 +1,27 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { requireAuth, type AuthenticatedRequest } from './middleware/auth';
 import { progressionService } from './services/progressionService';
 
-const router = express.Router();
-router.use(express.json({ limit: '1mb' }));
+const app = express();
+
+// CORS middleware for Vercel / custom domains
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
+
+app.use(express.json({ limit: '1mb' }));
 
 // URL normalization for both local Express server and Vercel serverless function invocation
-router.use((req, _res, next) => {
+app.use((req, _res, next) => {
   if (!req.url.startsWith('/api') && req.originalUrl && req.originalUrl.startsWith('/api')) {
     req.url = req.originalUrl;
   }
@@ -25,9 +38,9 @@ function registerRoute(
   const apiEndpoint = cleanEndpoint.startsWith('/api') ? cleanEndpoint : `/api${cleanEndpoint}`;
   const nonApiEndpoint = cleanEndpoint.replace(/^\/api/, '');
 
-  (router as any)[method](apiEndpoint, ...handlers);
+  (app as any)[method](apiEndpoint, ...handlers);
   if (nonApiEndpoint) {
-    (router as any)[method](nonApiEndpoint, ...handlers);
+    (app as any)[method](nonApiEndpoint, ...handlers);
   }
 }
 
@@ -307,4 +320,19 @@ registerRoute('get', '/api/progress', [
   }
 ]);
 
-export default router;
+// 8. Fallback 404 handler for API routes
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    error: `API endpoint not found: ${req.method} ${req.url}`
+  });
+});
+
+// 9. Global error handler
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled API Error:', err);
+  res.status(500).json({
+    error: err.message || 'Internal server error occurred'
+  });
+});
+
+export default app;
