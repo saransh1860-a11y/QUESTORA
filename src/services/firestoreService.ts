@@ -8,6 +8,7 @@ import {
   deleteDoc,
   query,
   where,
+  runTransaction,
   type DocumentData
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, type FirebaseUser } from '../lib/firebase';
@@ -33,6 +34,7 @@ import {
   ATTRIBUTE_BY_CATEGORY
 } from '../data/shopAndAchievements';
 import { calculateLevelData } from '../utils/level';
+import { computeDateBasedStreak } from '../utils/streak';
 
 export const firestoreService = {
   /**
@@ -99,6 +101,29 @@ export const firestoreService = {
           await setDoc(statsDocRef, statsData);
         }
 
+        // Recalculate streak accurately based on calendar dates (not task count)
+        const historySnap = await getDocs(
+          query(collection(db, 'questHistory'), where('userId', '==', uid))
+        );
+        const completionDates: string[] = [];
+        historySnap.forEach(d => {
+          if (d.data().completedAt) completionDates.push(d.data().completedAt);
+        });
+        completedQuestsSnap.forEach(d => {
+          const q = d.data() as Quest;
+          if (q.completedAt) completionDates.push(q.completedAt);
+        });
+
+        const streakResult = computeDateBasedStreak(completionDates);
+        if (userData.currentStreak !== streakResult.currentStreak || userData.longestStreak !== streakResult.longestStreak) {
+          userData.currentStreak = streakResult.currentStreak;
+          userData.longestStreak = streakResult.longestStreak;
+          await updateDoc(userDocRef, {
+            currentStreak: streakResult.currentStreak,
+            longestStreak: streakResult.longestStreak
+          });
+        }
+
         return { user: { ...userData, id: uid }, stats: statsData };
       }
 
@@ -163,6 +188,24 @@ export const firestoreService = {
         throw new Error(`User profile ${uid} not found in Firestore`);
       }
       const userData = userSnap.data() as UserProfile;
+
+      // Ensure streak reflects real calendar dates
+      const historySnap = await getDocs(
+        query(collection(db, 'questHistory'), where('userId', '==', uid))
+      );
+      const completionDates: string[] = [];
+      historySnap.forEach(d => {
+        if (d.data().completedAt) completionDates.push(d.data().completedAt);
+      });
+      const streakResult = computeDateBasedStreak(completionDates);
+      if (userData.currentStreak !== streakResult.currentStreak || userData.longestStreak !== streakResult.longestStreak) {
+        userData.currentStreak = streakResult.currentStreak;
+        userData.longestStreak = streakResult.longestStreak;
+        await updateDoc(doc(db, 'users', uid), {
+          currentStreak: streakResult.currentStreak,
+          longestStreak: streakResult.longestStreak
+        });
+      }
 
       const statsSnap = await getDoc(doc(db, 'stats', uid));
       const statsData: CharacterStats = statsSnap.exists()
@@ -273,147 +316,210 @@ export const firestoreService = {
     const statsRef = doc(db, 'stats', uid);
 
     try {
-      const [questSnap, userSnap, statsSnap] = await Promise.all([
-        getDoc(questRef),
-        getDoc(userRef),
-        getDoc(statsRef)
+      // Fetch completion history for calendar-based streak calculation and current unlocked achievements
+      const [historySnap, userAchsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'questHistory'), where('userId', '==', uid))),
+        getDocs(query(collection(db, 'userAchievements'), where('userId', '==', uid)))
       ]);
 
-      if (!questSnap.exists()) throw new Error('Quest not found');
-      if (!userSnap.exists()) throw new Error('User profile not found');
-
-      const quest = questSnap.data() as Quest;
-      const user = userSnap.data() as UserProfile;
-      const stats: CharacterStats = statsSnap.exists()
-        ? (statsSnap.data() as CharacterStats)
-        : {
-            intellect: 0,
-            strength: 0,
-            discipline: 0,
-            wisdom: 0,
-            creativity: 0
-          };
-
-      // Mark quest completed
-      const now = new Date().toISOString();
-      const updatedQuest: Quest = {
-        ...quest,
-        id: questId,
-        completed: true,
-        completedAt: now
-      };
-      await updateDoc(questRef, {
-        completed: true,
-        completedAt: now
+      const historyDates: string[] = [];
+      historySnap.forEach(d => {
+        if (d.data().completedAt) historyDates.push(d.data().completedAt);
       });
+      const totalCompletedQuestsCount = historySnap.size + 1;
 
-      // Calculate XP & Level Progression
-      const oldLevel = user.level || 1;
-      const newTotalXp = (user.totalXp || 0) + (quest.xpReward || 50);
-      const levelData = calculateLevelData(newTotalXp);
-      const didLevelUp = levelData.level > oldLevel;
-      const newGold = (user.gold || 0) + (quest.goldReward || 20);
-      const newStreak = (user.currentStreak || 0) + 1;
-      const longestStreak = Math.max(user.longestStreak || 0, newStreak);
+      const alreadyUnlockedAchIds = new Set<string>();
+      userAchsSnap.forEach(d => alreadyUnlockedAchIds.add(d.data().achievementId));
 
-      const updatedUser: UserProfile = {
-        ...user,
-        id: uid,
-        totalXp: newTotalXp,
-        level: levelData.level,
-        gold: newGold,
-        currentStreak: newStreak,
-        longestStreak: longestStreak,
-        lastQuestCompletedDate: now
-      };
-      await updateDoc(userRef, {
-        totalXp: newTotalXp,
-        level: levelData.level,
-        gold: newGold,
-        currentStreak: newStreak,
-        longestStreak: longestStreak,
-        lastQuestCompletedDate: now
-      });
+      // Execute ALL quest completion updates in a single atomic Firestore transaction
+      // Either ALL updates succeed together, or NONE are saved.
+      const result = await runTransaction(db, async (transaction) => {
+        // --- ALL READS MUST PRECEDE ALL WRITES (Strict Firestore Transaction Rule) ---
+        const [questSnap, userSnap, statsSnap] = await Promise.all([
+          transaction.get(questRef),
+          transaction.get(userRef),
+          transaction.get(statsRef)
+        ]);
 
-      // Update Character Stats attributes: calculated starting strictly from 0
-      const attrKey = (quest.attributeReward?.attribute || 'intellect') as AttributeType;
-      const attrAmount = quest.attributeReward?.amount || 1;
-      const currentVal = (stats as any)[attrKey] ?? 0;
-      const updatedStats: CharacterStats = {
-        intellect: stats.intellect ?? 0,
-        strength: stats.strength ?? 0,
-        discipline: stats.discipline ?? 0,
-        wisdom: stats.wisdom ?? 0,
-        creativity: stats.creativity ?? 0,
-        [attrKey]: currentVal + attrAmount
-      };
-      await setDoc(statsRef, updatedStats);
+        if (!questSnap.exists()) {
+          throw new Error('Quest not found');
+        }
+        if (!userSnap.exists()) {
+          throw new Error('User profile not found');
+        }
 
-      // Record to Firestore questHistory
-      const historyId = `hist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      await setDoc(doc(db, 'questHistory', historyId), {
-        id: historyId,
-        userId: uid,
-        questId: questId,
-        questTitle: quest.title,
-        xpEarned: quest.xpReward,
-        goldEarned: quest.goldReward,
-        completedAt: now
-      });
+        const quest = questSnap.data() as Quest;
+        const user = userSnap.data() as UserProfile;
 
-      // Check and award achievements in Firestore
-      const unlockedAchievements: Achievement[] = [];
-      const userAchsSnap = await getDocs(
-        query(collection(db, 'userAchievements'), where('userId', '==', uid))
-      );
-      const unlockedSet = new Set<string>();
-      userAchsSnap.forEach(d => unlockedSet.add(d.data().achievementId));
+        // Security check: quest must belong to logged-in user
+        if (quest.userId !== uid) {
+          throw new Error('Unauthorized: Quest does not belong to the logged-in user');
+        }
 
-      // 1. First Quest
-      if (!unlockedSet.has('ach-first-quest')) {
-        const a = ACHIEVEMENTS.find(x => x.id === 'ach-first-quest');
-        if (a) unlockedAchievements.push(a);
-      }
-      // 2. Streaks
-      if (newStreak >= 7 && !unlockedSet.has('ach-streak-7')) {
-        const a = ACHIEVEMENTS.find(x => x.id === 'ach-streak-7');
-        if (a) unlockedAchievements.push(a);
-      }
-      if (newStreak >= 14 && !unlockedSet.has('ach-streak-14')) {
-        const a = ACHIEVEMENTS.find(x => x.id === 'ach-streak-14');
-        if (a) unlockedAchievements.push(a);
-      }
-      // 3. Levels
-      if (levelData.level >= 5 && !unlockedSet.has('ach-level-5')) {
-        const a = ACHIEVEMENTS.find(x => x.id === 'ach-level-5');
-        if (a) unlockedAchievements.push(a);
-      }
-      if (levelData.level >= 10 && !unlockedSet.has('ach-level-10')) {
-        const a = ACHIEVEMENTS.find(x => x.id === 'ach-level-10');
-        if (a) unlockedAchievements.push(a);
-      }
+        // Integrity check: a quest cannot be completed twice
+        if (quest.completed) {
+          throw new Error('Quest has already been completed');
+        }
 
-      // Write any new achievements to Firestore
-      for (const ach of unlockedAchievements) {
-        if (!ach) continue;
-        const achDocId = `${uid}_${ach.id}`;
-        await setDoc(doc(db, 'userAchievements', achDocId), {
-          id: achDocId,
-          userId: uid,
-          achievementId: ach.id,
-          unlockedAt: now
+        const stats: CharacterStats = statsSnap.exists()
+          ? (statsSnap.data() as CharacterStats)
+          : {
+              intellect: 0,
+              strength: 0,
+              discipline: 0,
+              wisdom: 0,
+              creativity: 0
+            };
+
+        const now = new Date().toISOString();
+
+        // Calculate XP, Level and Gold Progression
+        const oldLevel = user.level || 1;
+        const xpEarned = quest.xpReward || 50;
+        const goldEarned = quest.goldReward || 20;
+        const newTotalXp = (user.totalXp || 0) + xpEarned;
+        const levelData = calculateLevelData(newTotalXp);
+        const didLevelUp = levelData.level > oldLevel;
+        const newGold = (user.gold || 0) + goldEarned;
+
+        // Date-based streak calculation: advances ONLY across calendar days, not per-task
+        const combinedDates = [...historyDates, now];
+        const streakData = computeDateBasedStreak(combinedDates, new Date());
+        const newStreak = streakData.currentStreak;
+        const longestStreak = Math.max(user.longestStreak || 0, streakData.longestStreak);
+
+        // Update Character Stats attributes: calculated starting strictly from 0
+        const attrKey = (quest.attributeReward?.attribute || 'intellect') as AttributeType;
+        const attrAmount = quest.attributeReward?.amount || 1;
+        const currentVal = (stats as any)[attrKey] ?? 0;
+        const updatedStats: CharacterStats = {
+          intellect: stats.intellect ?? 0,
+          strength: stats.strength ?? 0,
+          discipline: stats.discipline ?? 0,
+          wisdom: stats.wisdom ?? 0,
+          creativity: stats.creativity ?? 0,
+          [attrKey]: currentVal + attrAmount
+        };
+
+        const updatedUser: UserProfile = {
+          ...user,
+          id: uid,
+          totalXp: newTotalXp,
+          level: levelData.level,
+          gold: newGold,
+          currentStreak: newStreak,
+          longestStreak: longestStreak,
+          lastQuestCompletedDate: now
+        };
+
+        const updatedQuest: Quest = {
+          ...quest,
+          id: questId,
+          completed: true,
+          completedAt: now
+        };
+
+        // Determine newly unlocked achievements based on final results
+        const newlyUnlockedAchievements: Achievement[] = [];
+        if (!alreadyUnlockedAchIds.has('ach-first-quest')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-first-quest');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (newStreak >= 7 && !alreadyUnlockedAchIds.has('ach-streak-7')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-streak-7');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (newStreak >= 14 && !alreadyUnlockedAchIds.has('ach-streak-14')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-streak-14');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (levelData.level >= 5 && !alreadyUnlockedAchIds.has('ach-level-5')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-level-5');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (levelData.level >= 10 && !alreadyUnlockedAchIds.has('ach-level-10')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-level-10');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (levelData.level >= 20 && !alreadyUnlockedAchIds.has('ach-level-20')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-level-20');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (totalCompletedQuestsCount >= 10 && !alreadyUnlockedAchIds.has('ach-quests-10')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-quests-10');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (updatedStats.intellect >= 5 && !alreadyUnlockedAchIds.has('ach-intellect-5')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-intellect-5');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (updatedStats.strength >= 5 && !alreadyUnlockedAchIds.has('ach-strength-5')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-strength-5');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+        if (updatedStats.discipline >= 5 && !alreadyUnlockedAchIds.has('ach-discipline-5')) {
+          const a = ACHIEVEMENTS.find(x => x.id === 'ach-discipline-5');
+          if (a) newlyUnlockedAchievements.push(a);
+        }
+
+        // --- ALL WRITES MUST FOLLOW ALL READS (ATOMIC TRANSACTION COMMIT) ---
+        // 1. Update Quest completion status
+        transaction.update(questRef, {
+          completed: true,
+          completedAt: now,
+          userId: uid
         });
-      }
 
-      return {
-        quest: updatedQuest,
-        user: updatedUser,
-        stats: updatedStats,
-        didLevelUp,
-        newLevel: levelData.level,
-        levelData,
-        unlockedAchievements: unlockedAchievements.filter(Boolean)
-      };
+        // 2. Update User Profile (totalXp, level, gold, streak)
+        transaction.update(userRef, {
+          totalXp: newTotalXp,
+          level: levelData.level,
+          gold: newGold,
+          currentStreak: newStreak,
+          longestStreak: longestStreak,
+          lastQuestCompletedDate: now
+        });
+
+        // 3. Update Character Stats
+        transaction.set(statsRef, updatedStats);
+
+        // 4. Create Quest History Entry
+        const historyId = `hist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const historyDocRef = doc(db, 'questHistory', historyId);
+        transaction.set(historyDocRef, {
+          id: historyId,
+          userId: uid,
+          questId: questId,
+          questTitle: quest.title,
+          xpEarned,
+          goldEarned,
+          completedAt: now
+        });
+
+        // 5. Create newly unlocked Achievements
+        for (const ach of newlyUnlockedAchievements) {
+          const achDocId = `${uid}_${ach.id}`;
+          const achDocRef = doc(db, 'userAchievements', achDocId);
+          transaction.set(achDocRef, {
+            id: achDocId,
+            userId: uid,
+            achievementId: ach.id,
+            unlockedAt: now
+          });
+        }
+
+        return {
+          quest: updatedQuest,
+          user: updatedUser,
+          stats: updatedStats,
+          didLevelUp,
+          newLevel: levelData.level,
+          levelData,
+          unlockedAchievements: newlyUnlockedAchievements.filter(Boolean)
+        };
+      });
+
+      return result;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `quests/${questId}`);
       throw err;
